@@ -125,22 +125,14 @@ class SrealityScraper(BaseScraper):
             if locality_region_id is not None:
                 params["locality_region_id"] = locality_region_id
 
-            # Progress info
-            import sys
-            print(f"  Stránka {page}/{limit if limit else '?'}...", end=" ", flush=True)
-
             payload = self._request(self._config.api_url, params=params)
             if not payload:
-                print("❌")
                 result.errors.append("Chyba při komunikaci se Sreality API (možná blokace).")
                 break
 
             estates = payload.get("_embedded", {}).get("estates", [])
             if not estates:
-                print("(prázdná)")
                 break
-
-            print(f"✓ {len(estates)} inzerátů, ", end="", flush=True)
 
             for estate in estates:
                 if fetch_details:
@@ -180,9 +172,6 @@ class SrealityScraper(BaseScraper):
                     aggregated["detailni_informace"].append(agent_record["detailni_informace"])
                 if agent_record.get("odkazy"):
                     aggregated["odkazy"].extend(agent_record["odkazy"])
-
-            # Progress: počet unikátních agentů
-            print(f"{len(records)} unikátních agentů")
 
             result_size = payload.get("result_size", 0)
             if (page * 60) >= result_size:
