@@ -73,12 +73,9 @@ def _slugify_locality(value: Optional[str]) -> Optional[str]:
     ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
     ascii_value = ascii_value.lower()
     ascii_value = re.sub(r"[^a-z0-9]+", "-", ascii_value)
+    ascii_value = re.sub(r"-+", "-", ascii_value)
     ascii_value = ascii_value.strip("-")
-    if not ascii_value:
-        return None
-    parts = [part for part in ascii_value.split("-") if part and not part.isdigit()]
-    slug = "-".join(parts)
-    return slug or None
+    return ascii_value or None
 
 
 @register
