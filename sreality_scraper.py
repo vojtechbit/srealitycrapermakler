@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Callable, Any
 import json
 from pathlib import Path
 from collections import defaultdict
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 class Config:
     BASE_URL = "https://www.sreality.cz"
@@ -288,6 +288,10 @@ class AgentScraper:
                 candidate = urljoin(base_url, candidate.lstrip('/'))
 
             if not candidate.startswith('http'):
+                return None
+
+            parsed = urlparse(candidate)
+            if not parsed.netloc or not parsed.netloc.endswith('sreality.cz'):
                 return None
 
             if '/api/' in candidate or '/cs/v2/estates' in candidate:
