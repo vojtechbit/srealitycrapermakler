@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Callable, Any
 import json
 from pathlib import Path
 from collections import defaultdict
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 class Config:
     BASE_URL = "https://www.sreality.cz"
@@ -221,7 +221,7 @@ class AgentScraper:
 
             agent_key = f"{agent_name}_{company_name}_{agent_phone}"
 
-            estate_url = self._build_estate_url(estate)
+            estate_url = self._build_estate_url(detail, estate)
             estate_name = estate.get('name', 'N/A')
             locality = estate.get('locality', 'N/A')
             price = estate.get('price_czk', {}).get('value_raw') or estate.get('price')
@@ -257,30 +257,225 @@ class AgentScraper:
             if self.verbose:
                 print(f"  ⚠️  Chyba: {str(e)}")
 
-    def _build_estate_url(self, estate: Dict) -> Optional[str]:
-        href = None
+    def _build_estate_url(self, detail: Optional[Dict], estate: Optional[Dict]) -> Optional[str]:
+        """
+        Připraví veřejný (ne-API) odkaz na inzerát.
 
-        seo = estate.get('seo', {}) if isinstance(estate, dict) else {}
-        if isinstance(seo, dict):
-            href = seo.get('href')
+        API vrací celou řadu odkazů v různých strukturách. Preferujeme URL,
+        které vede na veřejnou stránku (typicky obsahující "/detail/").
+        V některých případech je ukryta v sekci `seo`, jindy ve `_links`,
+        nebo mezi share odkazy. Pokud žádná varianta není k dispozici,
+        spadneme na poslední možnost s použitím `hash_id`.
+        """
 
-        if not href:
-            links = estate.get('_links', {}) if isinstance(estate, dict) else {}
+        base_url = self.config.BASE_URL.rstrip('/') + '/'
+
+        def normalize_url(value: Optional[str]) -> Optional[str]:
+            if not value or not isinstance(value, str):
+                return None
+
+            candidate = value.strip()
+            if not candidate:
+                return None
+
+            if candidate.startswith('//'):
+                candidate = f"https:{candidate}"
+
+            if candidate.startswith('detail/'):
+                candidate = f"/{candidate}"
+
+            if candidate.startswith('/'):
+                candidate = urljoin(base_url, candidate.lstrip('/'))
+
+            if not candidate.startswith('http'):
+                return None
+
+            parsed = urlparse(candidate)
+            if not parsed.netloc or not parsed.netloc.endswith('sreality.cz'):
+                return None
+
+            if '/api/' in candidate or '/cs/v2/estates' in candidate:
+                return None
+
+            if '/detail/' not in candidate:
+                return None
+
+            return candidate
+
+        def extract_from_links(links: Any) -> Optional[str]:
             if isinstance(links, dict):
-                href = links.get('self', {}).get('href') if isinstance(links.get('self'), dict) else links.get('self')
-
-        if not href and isinstance(estate, dict):
-            href = estate.get('url') or estate.get('link')
-
-        if not href:
+                for key, value in links.items():
+                    if isinstance(value, dict):
+                        href = normalize_url(value.get('href') or value.get('url'))
+                        if href:
+                            return href
+                        nested = extract_from_links(value)
+                        if nested:
+                            return nested
+                    elif isinstance(value, list):
+                        for item in value:
+                            nested = extract_from_links(item)
+                            if nested:
+                                return nested
+                    elif isinstance(value, str):
+                        href = normalize_url(value)
+                        if href:
+                            return href
+            elif isinstance(links, list):
+                for item in links:
+                    nested = extract_from_links(item)
+                    if nested:
+                        return nested
             return None
 
-        if href.startswith('http'):
-            return href
+        def extract_from_seo(seo: Any) -> Optional[str]:
+            if not isinstance(seo, dict):
+                return None
 
-        base = self.config.BASE_URL.rstrip('/') + '/'
-        path = href.lstrip('/')
-        return urljoin(base, path)
+            for key in (
+                'canonical', 'canonical_url', 'canonicalUrl', 'canonical_path',
+                'url', 'href', 'detail_url', 'detailUrl'
+            ):
+                href = normalize_url(seo.get(key))
+                if href:
+                    return href
+
+            href = extract_from_links(seo.get('links'))
+            if href:
+                return href
+
+            # Některé položky mají seznam SEO URL
+            seo_urls = seo.get('seo_urls') or seo.get('urls')
+            href = extract_from_links(seo_urls)
+            if href:
+                return href
+
+            return None
+
+        def extract_generic(data: Any) -> Optional[str]:
+            if isinstance(data, dict):
+                for key in (
+                    'url', 'detail_url', 'detailUrl', 'public_url', 'publicUrl',
+                    'share_url', 'shareUrl', 'browser_url', 'browserUrl', 'href',
+                    'canonical', 'canonical_url', 'canonicalUrl', 'permalink',
+                    'link'
+                ):
+                    if key in data:
+                        value = data[key]
+                        if isinstance(value, str):
+                            href = normalize_url(value)
+                            if href:
+                                return href
+                        else:
+                            href = extract_from_links(value)
+                            if href:
+                                return href
+
+                href = extract_from_links(data.get('_links'))
+                if href:
+                    return href
+
+                href = extract_from_links(data.get('links'))
+                if href:
+                    return href
+
+                for value in data.values():
+                    nested = extract_generic(value)
+                    if nested:
+                        return nested
+
+            elif isinstance(data, list):
+                for item in data:
+                    nested = extract_generic(item)
+                    if nested:
+                        return nested
+            elif isinstance(data, str):
+                href = normalize_url(data)
+                if href:
+                    return href
+
+            return None
+
+        def slugify(value: Optional[str]) -> Optional[str]:
+            if not value or not isinstance(value, str):
+                return None
+            cleaned = value.strip().lower()
+            if not cleaned:
+                return None
+            return cleaned.replace(' ', '-').replace('_', '-').replace('--', '-').strip('-')
+
+        def extract_slug(seo_dict: Dict, key: str) -> Optional[str]:
+            if not isinstance(seo_dict, dict):
+                return None
+            value = seo_dict.get(key)
+            if isinstance(value, dict):
+                for inner_key in ('value', 'seo_value', 'slug', 'code', 'id', 'key'):
+                    slug = slugify(value.get(inner_key))
+                    if slug:
+                        return slug
+                slug = slugify(value.get('name'))
+                if slug:
+                    return slug
+            elif isinstance(value, (str, int)):
+                slug = slugify(str(value))
+                if slug:
+                    return slug
+            return None
+
+        for source in (detail, estate):
+            if not isinstance(source, dict):
+                continue
+
+            href = extract_from_seo(source.get('seo'))
+            if href:
+                return href
+
+            href = extract_generic(source)
+            if href:
+                return href
+
+        def manual_from_seo(source: Optional[Dict], hash_id: Optional[str]) -> Optional[str]:
+            if not isinstance(source, dict) or not hash_id:
+                return None
+
+            seo = source.get('seo')
+            if not isinstance(seo, dict):
+                return None
+
+            category_type = extract_slug(seo, 'category_type') or extract_slug(seo, 'category_type_cb')
+            category_main = extract_slug(seo, 'category_main') or extract_slug(seo, 'category_main_cb')
+            category_sub = extract_slug(seo, 'category_sub') or extract_slug(seo, 'category_sub_cb')
+            locality_slug = extract_slug(seo, 'locality') or extract_slug(seo, 'locality_value')
+
+            parts = [category_type, category_main]
+            if category_sub:
+                parts.append(category_sub)
+            if locality_slug:
+                parts.append(locality_slug)
+
+            if len(parts) < 3:  # potřebujeme alespoň typ, kategorii a lokalitu
+                return None
+
+            parts.append(str(hash_id))
+            path = '/'.join(filter(None, parts))
+            return urljoin(base_url, f"detail/{path}")
+
+        # Poslední pokus: složíme URL z hash_id, pokud žádné lepší není
+        hash_id = None
+        for source in (detail, estate):
+            if isinstance(source, dict):
+                hash_id = source.get('hash_id') or hash_id
+                if hash_id:
+                    break
+
+        manual = manual_from_seo(detail or estate, hash_id)
+        if manual:
+            return manual
+
+        if hash_id:
+            return urljoin(base_url, f"detail/{hash_id}")
+
+        return None
 
     def _find_company_name(self, data: Any) -> Optional[str]:
         return self._find_first_match(
