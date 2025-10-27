@@ -183,19 +183,36 @@ class AgentScraper:
             agent_email = None
             company_name = None
 
-            seller = embedded.get('seller') or embedded.get('company') or detail.get('seller')
+            seller = embedded.get('seller')
+            company = embedded.get('company')
+            broker = embedded.get('broker')
+
             if seller:
                 agent_name = seller.get('user_name') or seller.get('name')
-                company_name = seller.get('company_name') or seller.get('name')
+                company_name = seller.get('company_name')
 
-            if not agent_name:
-                agent_info = embedded.get('broker') or embedded.get('agent')
-                if agent_info:
-                    agent_name = agent_info.get('name') or agent_info.get('user_name')
+            if company and not company_name:
+                company_name = company.get('name')
 
-            contact = detail.get('contact') or {}
-            agent_phone = contact.get('phone') or contact.get('mobile')
-            agent_email = contact.get('email')
+            if broker and not agent_name:
+                agent_name = broker.get('user_name') or broker.get('name')
+
+            if not company_name and seller:
+                company_name = seller.get('name')
+
+            phones = detail.get('phones', [])
+            if phones and isinstance(phones, list):
+                for phone in phones:
+                    if isinstance(phone, dict) and 'number' in phone:
+                        agent_phone = phone.get('number')
+                        break
+
+            emails = detail.get('emails', [])
+            if emails and isinstance(emails, list):
+                for email in emails:
+                    if isinstance(email, dict) and 'email' in email:
+                        agent_email = email.get('email')
+                        break
 
             if not agent_name and not agent_phone and not agent_email:
                 agent_name = "Neznámý makléř"
@@ -306,14 +323,40 @@ class AgentScraper:
                 'Kraj': agent['kraj'],
                 'Město': agent['mesto'],
                 'Počet inzerátů': agent['pocet_inzeratu'],
-                'Typy nemovitostí': ', '.join(sorted(agent['typy_nemovitosti'])),
-                'Inzeráty': ' | '.join(agent['inzeraty'][:5]) + (' ...' if len(agent['inzeraty']) > 5 else ''),
-                'Odkazy': ' | '.join(agent['inzeraty_odkazy'][:3]) + (' ...' if len(agent['inzeraty_odkazy']) > 3 else ''),
+                'Typy nemovitostí': ', '.join(sorted(agent['typy_nemovitosti'])) if agent['typy_nemovitosti'] else 'N/A',
+                'Odkazy': '\n'.join(agent['inzeraty_odkazy'][:5]),
+                'Inzeráty': '\n'.join(agent['inzeraty'][:5]) + ('\n...' if len(agent['inzeraty']) > 5 else ''),
             })
 
         df = pd.DataFrame(results)
         df = df.sort_values('Počet inzerátů', ascending=False)
-        df.to_excel(filepath, index=False, engine='openpyxl')
+
+        with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Makléři')
+
+            worksheet = writer.sheets['Makléři']
+
+            for idx, col in enumerate(df.columns):
+                max_length = max(
+                    df[col].astype(str).apply(lambda x: len(str(x).split('\n')[0])).max(),
+                    len(col)
+                ) + 2
+
+                if col == 'Odkazy':
+                    max_length = min(max_length, 80)
+                elif col == 'Inzeráty':
+                    max_length = min(max_length, 60)
+                elif col == 'Email':
+                    max_length = min(max_length, 35)
+                else:
+                    max_length = min(max_length, 30)
+
+                worksheet.column_dimensions[chr(65 + idx)].width = max_length
+
+            from openpyxl.styles import Alignment
+            for row in worksheet.iter_rows(min_row=2):
+                for cell in row:
+                    cell.alignment = Alignment(wrap_text=True, vertical='top')
 
         print(f"\n💾 Uloženo: {filepath}")
         print(f"📊 Počet makléřů: {len(results)}")
