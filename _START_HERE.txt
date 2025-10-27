@@ -1,0 +1,230 @@
+╔═══════════════════════════════════════════════════════════╗
+║   SREALITY SCRAPER - KOMPLETNÍ BALÍČEK PRO GITHUB        ║
+╚═══════════════════════════════════════════════════════════╝
+
+✨ VŠE JE PŘIPRAVENO K NAHRÁNÍ NA GITHUB! ✨
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📁 CO MÁTE VE SLOŽCE:
+
+┌─────────────────────────────────────────────────────────┐
+│ HLAVNÍ SOUBORY                                          │
+├─────────────────────────────────────────────────────────┤
+│ ✅ sreality_scraper.py    Hlavní scraper (450+ řádků)  │
+│ ✅ examples.py            Hotové příklady použití      │
+│ ✅ requirements.txt       Python závislosti            │
+├─────────────────────────────────────────────────────────┤
+│ DOKUMENTACE                                             │
+├─────────────────────────────────────────────────────────┤
+│ 📘 README.md              Hlavní dokumentace           │
+│ 📄 QUICKSTART.txt         Rychlý start návod           │
+│ 📝 GIT_SETUP.md           Git návod                    │
+│ 📋 CONTRIBUTING.md        Pro přispěvatele            │
+│ 📜 CHANGELOG.md           Historie změn               │
+│ 🚀 UPLOAD_NA_GITHUB.txt   Tento soubor               │
+├─────────────────────────────────────────────────────────┤
+│ SCRIPTY                                                 │
+├─────────────────────────────────────────────────────────┤
+│ 🚀 start.sh               Spuštění scraperu            │
+│ 🔧 git_setup.sh           Automatický Git upload       │
+│ 🧪 test_setup.py          Test závislostí              │
+├─────────────────────────────────────────────────────────┤
+│ SYSTÉMOVÉ SOUBORY                                       │
+├─────────────────────────────────────────────────────────┤
+│ ⚖️  LICENSE                MIT licence                  │
+│ 🚫 .gitignore             Git ignore pravidla          │
+│ 📁 data/                  Složka pro výstupy          │
+└─────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 CO DĚLAT TEĎ:
+
+1️⃣  NAHRAJ NA GITHUB (vyber jednu metodu):
+
+   🔷 METODA A - Automatický script (nejjednodušší):
+      cd /Users/vojtechbroucek/Desktop/sreality_scraper
+      chmod +x git_setup.sh
+      ./git_setup.sh
+
+   🔷 METODA B - Manuálně (máš kontrolu):
+      cd /Users/vojtechbroucek/Desktop/sreality_scraper
+      git init
+      git remote add origin https://github.com/vojtechbit/srealitymaklerscraper.git
+      git add .
+      git commit -m "Initial commit - Sreality scraper v1.0"
+      git push -u origin main
+
+2️⃣  OVĚŘ, ŽE TO FUNGUJE:
+    Otevři: https://github.com/vojtechbit/srealitymaklerscraper
+    Měl bys vidět všechny soubory! ✨
+
+3️⃣  POUŽIJ S CLAUDE CODE:
+    - Otevři Claude Code
+    - File → Open Folder
+    - Vyber: /Users/vojtechbroucek/Desktop/sreality_scraper
+    - Claude Code vidí celý projekt!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOKUMENTACE - CO ČÍSt:
+
+┌─────────────────────────────────────────────────────────┐
+│ PRO ZAČÁTEČNÍKY                                         │
+├─────────────────────────────────────────────────────────┤
+│ 1. QUICKSTART.txt      → Jak začít scrapat             │
+│ 2. README.md           → Kompletní návod               │
+│ 3. examples.py         → Příklady kódu                 │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ PRO GIT & GITHUB                                        │
+├─────────────────────────────────────────────────────────┤
+│ 1. UPLOAD_NA_GITHUB.txt → Jak nahrát (tento soubor)   │
+│ 2. GIT_SETUP.md         → Detailní Git návod          │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ PRO PŘISPĚVATELE                                        │
+├─────────────────────────────────────────────────────────┤
+│ 1. CONTRIBUTING.md     → Jak přispívat                 │
+│ 2. CHANGELOG.md        → Historie změn                 │
+└─────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎨 FUNKCE SCRAPERU:
+
+✅ Stahuje: Byty, Domy, Pozemky, Komerční nemovitosti
+✅ Filtrování: Podle kraje, typu inzerátu
+✅ Export: Excel (.xlsx), CSV
+✅ Ochrana: Rate limiting, User-Agent rotace, retry logika
+✅ UI: Interaktivní terminálové rozhraní
+✅ Konfigurace: Nastavitelné parametry
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 STATISTIKY:
+
+📝 Řádků kódu:        ~450 (sreality_scraper.py)
+📄 Dokumentace:       ~2000 řádků
+🔧 Scripty:           4 pomocné scripty
+📚 Příklady:          4 hotové use-cases
+🧪 Testy:             Test setup script
+⚖️  Licence:           MIT (open source)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔐 BEZPEČNOST:
+
+Co JE v .gitignore (NEBUDE na GitHubu):
+  ✓ data/           - Vaše Excel soubory
+  ✓ *.xlsx          - Excel soubory
+  ✓ *.csv           - CSV soubory
+  ✓ __pycache__/    - Python cache
+  ✓ *.pyc           - Compiled Python
+
+Co BUDE na GitHubu:
+  ✓ Zdrojový kód
+  ✓ Dokumentace
+  ✓ Příklady
+  ✓ Licence
+  ✓ README
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 TIPY PRO PRÁCI S PROJEKTEM:
+
+🔹 Spuštění scraperu:
+   python3 sreality_scraper.py
+
+🔹 Spuštění příkladů:
+   python3 examples.py
+
+🔹 Test závislostí:
+   python3 test_setup.py
+
+🔹 Změny v kódu:
+   git add .
+   git commit -m "Popis změny"
+   git push
+
+🔹 Stažení aktuální verze:
+   git pull
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 BUDOUCÍ VÝVOJ:
+
+Nápady na vylepšení (viz CHANGELOG.md):
+  • GUI aplikace
+  • Databázový export
+  • Paralelní scraping
+  • Email notifikace
+  • Progress bar
+  • Docker kontejner
+  • API server
+
+Můžeš přispět! viz CONTRIBUTING.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  DŮLEŽITÉ UPOZORNĚNÍ:
+
+❗ Scraper NENÍ oficiálně podporován Sreality.cz
+❗ Používej odpovědně (max 1x za pár hodin)
+❗ Respektuj rate limiting
+❗ Data jen pro osobní účely
+❗ Čti podmínky použití Sreality.cz
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📞 POTŘEBUJEŠ POMOCT?
+
+📧 GitHub Issues:
+   https://github.com/vojtechbit/srealitymaklerscraper/issues
+
+📖 Dokumentace:
+   README.md - Vše co potřebuješ vědět
+
+💻 Claude Code:
+   Otevři projekt a ptej se Claude!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ CHECKLIST PŘED NAHRÁNÍM:
+
+ ✅ Python 3.8+ nainstalován
+ ✅ Git nainstalován
+ ✅ GitHub repozitář vytvořen
+ ✅ Všechny soubory ve složce
+ ✅ Terminal otevřen ve správné složce
+ ✅ Připraven Access Token nebo SSH klíč
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎉 GRATULUJEME!
+
+Máte profesionální, dobře zdokumentovaný projekt připravený
+pro GitHub a Claude Code!
+
+Projekt obsahuje:
+  • Funkční scraper
+  • Kompletní dokumentaci
+  • Příklady použití
+  • Testy
+  • Git nastavení
+  • Licence
+  • Contributing guidelines
+
+Můžete začít scrapovat nebo projekt dále rozvíjet! 🚀
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Made with ❤️ by Claude (Anthropic)
+Pro: vojtechbit
+
+Hodně štěstí s projektem! 🍀
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

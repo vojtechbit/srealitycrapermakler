@@ -1,0 +1,153 @@
+╔═══════════════════════════════════════════════════════════╗
+║     JAK NAHRÁT NA GITHUB - JEDNODUCHÝ NÁVOD              ║
+╚═══════════════════════════════════════════════════════════╝
+
+📍 Repozitář: https://github.com/vojtechbit/srealitymaklerscraper
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 METODA 1: AUTOMATICKÝ SCRIPT (DOPORUČENO)
+
+1️⃣  Otevři Terminal ve složce:
+    cd /Users/vojtechbroucek/Desktop/sreality_scraper
+
+2️⃣  Spusť automatický upload script:
+    chmod +x git_setup.sh
+    ./git_setup.sh
+
+3️⃣  Hotovo! ✨
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 METODA 2: MANUÁLNĚ (KROK ZA KROKEM)
+
+1️⃣  Otevři Terminal:
+    cd /Users/vojtechbroucek/Desktop/sreality_scraper
+
+2️⃣  Inicializuj Git:
+    git init
+
+3️⃣  Přidej GitHub repozitář:
+    git remote add origin https://github.com/vojtechbit/srealitymaklerscraper.git
+
+4️⃣  Přidej všechny soubory:
+    git add .
+
+5️⃣  Vytvoř commit:
+    git commit -m "Initial commit - Sreality scraper v1.0"
+
+6️⃣  Nahraj na GitHub:
+    git push -u origin main
+
+    (Pokud nefunguje, zkus: git push -u origin master)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔐 KDYŽ SE ZEPTÁ NA PŘIHLÁŠENÍ:
+
+GitHub už nepodporuje hesla! Musíš použít:
+
+🔑 OSOBNÍ ACCESS TOKEN:
+   1. Jdi na: https://github.com/settings/tokens
+   2. Klikni "Generate new token" → "Classic"
+   3. Dej mu jméno: "sreality-scraper"
+   4. Vyber "repo" oprávnění
+   5. Zkopíruj token (UKAŽ JEN 1x!)
+   6. Použij jako heslo v Terminálu
+
+nebo
+
+🔐 SSH KLÍČ (lepší varianta):
+   1. Vygeneruj klíč: ssh-keygen -t ed25519 -C "tvuj@email.com"
+   2. Přidej na GitHub: https://github.com/settings/keys
+   3. Změň remote URL:
+      git remote set-url origin git@github.com:vojtechbit/srealitymaklerscraper.git
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ OVĚŘENÍ ŽE TO FUNGUJE:
+
+Otevři v prohlížeči:
+https://github.com/vojtechbit/srealitymaklerscraper
+
+Měl bys vidět všechny soubory! 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔄 DALŠÍ ZMĚNY (KDYŽ NĚCO ZMĚNÍŠ):
+
+1. Zobraz změny:
+   git status
+
+2. Přidej změny:
+   git add .
+
+3. Commit:
+   git commit -m "Popis změny"
+
+4. Push:
+   git push
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 PRÁCE S CLAUDE CODE:
+
+Po nahrání na GitHub:
+
+1. Klonuj někde jinde (nebo použij přímo tuto složku):
+   git clone https://github.com/vojtechbit/srealitymaklerscraper.git
+
+2. Otevři v Claude Code:
+   - Spusť Claude Code
+   - File → Open Folder
+   - Vyber složku s projektem
+
+3. Claude Code vidí celý projekt a můžeš s ním:
+   ✓ Upravovat soubory
+   ✓ Spouštět scraper
+   ✓ Vyvíjet nové funkce
+   ✓ Testovat změny
+
+4. Synchronizace změn:
+   git add .
+   git commit -m "Změny z Claude Code"
+   git push
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❓ ČASTÉ PROBLÉMY:
+
+❌ "remote origin already exists"
+   git remote remove origin
+   git remote add origin https://github.com/vojtechbit/srealitymaklerscraper.git
+
+❌ "failed to push some refs"
+   git pull origin main --allow-unrelated-histories
+   git push
+
+❌ "Permission denied (publickey)"
+   Nastav SSH klíč nebo použij Personal Access Token
+
+❌ "fatal: not a git repository"
+   Ujisti se, že jsi ve správné složce:
+   cd /Users/vojtechbroucek/Desktop/sreality_scraper
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 TIPY:
+
+• .gitignore už je nastaven - data/ složka se nenahraje
+• Excel soubory (.xlsx) a CSV nebudou na GitHubu
+• Před každým pushem zkontroluj: git status
+• Pro více info viz: GIT_SETUP.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📞 POMOC:
+
+Detailní návod: GIT_SETUP.md
+GitHub Issues: https://github.com/vojtechbit/srealitymaklerscraper/issues
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Hodně štěstí! 🍀

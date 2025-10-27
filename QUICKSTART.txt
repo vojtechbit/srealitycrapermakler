@@ -1,0 +1,86 @@
+╔═══════════════════════════════════════════════════════════╗
+║        SREALITY SCRAPER - RYCHLÝ START                    ║
+╚═══════════════════════════════════════════════════════════╝
+
+📋 CO POTŘEBUJEŠ:
+  ✓ Python 3.8+ (stáhni z python.org)
+  ✓ Terminal/Příkazový řádek
+
+🚀 RYCHLÉ SPUŠTĚNÍ (3 KROKY):
+
+1️⃣  Otevři terminál ve složce sreality_scraper
+   
+   macOS/Linux:
+   - Pravé tlačítko na složku → "Services" → "New Terminal at Folder"
+   - nebo: cd /Users/vojtechbroucek/Desktop/sreality_scraper
+   
+   Windows:
+   - Shift + pravé tlačítko na složku → "Otevřít PowerShell zde"
+
+2️⃣  Nainstaluj závislosti (jen poprvé):
+   
+   pip3 install -r requirements.txt
+   
+   (nebo: pip install -r requirements.txt)
+
+3️⃣  Spusť scraper:
+   
+   python3 sreality_scraper.py
+   
+   (nebo: python sreality_scraper.py)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 ALTERNATIVA - Jednoduchý start script:
+
+macOS/Linux:
+  chmod +x start.sh
+  ./start.sh
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 CO SE STANE:
+  1. Program se tě zeptá na parametry vyhledávání
+  2. Stáhne data ze Sreality.cz
+  3. Uloží do Excel souboru ve složce "data/"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 PŘÍKLADY POUŽITÍ:
+
+Spusť příklady:
+  python3 examples.py
+
+Typy nemovitostí:
+  1 = Byty
+  2 = Domy
+  3 = Pozemky
+  4 = Komerční
+
+Typ inzerátu:
+  1 = Prodej
+  2 = Pronájem
+
+Kraje (nebo prázdné pro celou ČR):
+  10 = Praha
+  23 = Moravskoslezský
+  ... (další viz README.md)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  DŮLEŽITÉ:
+  - Nepoužívej příliš často (max 1x za pár hodin)
+  - Respektuj rate limiting
+  - Data jsou jen pro osobní použití
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❓ PROBLÉMY?
+  
+  "Module not found" → pip3 install -r requirements.txt
+  "Permission denied" → chmod +x start.sh
+  Chyba 429 → Počkej pár minut a zkus znovu
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📄 Více info v README.md
