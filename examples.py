@@ -1,84 +1,54 @@
-"""
-Příklady použití Sreality Scraperu
-Zkopíruj a uprav podle svých potřeb
-"""
+from sreality_scraper import AgentScraper
 
-from sreality_scraper import SrealityScraper
-
-# ===== PŘÍKLAD 1: Byty na prodej v Praze =====
 def example_prague_flats():
-    scraper = SrealityScraper(verbose=True)
-    
-    scraper.scrape_listings(
-        category_main=1,        # Byty
-        category_type=1,        # Prodej
-        locality_region_id=10,  # Praha
-        max_pages=5             # 5 stránek = cca 300 nabídek
+    """Makléři prodávající byty v Praze"""
+    scraper = AgentScraper(verbose=True)
+    scraper.scrape_agents(
+        category_main=1,
+        category_type=1,
+        locality_region_id=10,
+        max_pages=5,
+        fetch_details=True
     )
-    
-    scraper.save_to_excel("praha_byty_prodej.xlsx")
+    scraper.save_to_excel("makleri_praha_byty.xlsx")
 
-
-# ===== PŘÍKLAD 2: Domy na pronájem - celá ČR =====
-def example_houses_rent():
-    scraper = SrealityScraper(verbose=True)
-    
-    scraper.scrape_listings(
-        category_main=2,        # Domy
-        category_type=2,        # Pronájem
-        locality_region_id=None, # Celá ČR
-        max_pages=10
+def example_houses_all():
+    """Makléři prodávající domy v celé ČR"""
+    scraper = AgentScraper(verbose=True)
+    scraper.scrape_agents(
+        category_main=2,
+        category_type=1,
+        locality_region_id=None,
+        max_pages=10,
+        fetch_details=False
     )
-    
-    scraper.save_to_excel("domy_pronajem_cr.xlsx")
+    scraper.save_to_excel("makleri_domy_cr.xlsx")
 
-
-# ===== PŘÍKLAD 3: Pozemky v Moravskoslezském kraji =====
-def example_land_moravia():
-    scraper = SrealityScraper(verbose=True)
-    
-    scraper.scrape_listings(
-        category_main=3,        # Pozemky
-        category_type=1,        # Prodej
-        locality_region_id=23,  # Moravskoslezský
-        max_pages=3
-    )
-    
-    scraper.save_to_excel("pozemky_msk.xlsx")
-    scraper.save_to_csv("pozemky_msk.csv")  # Uložit i do CSV
-
-
-# ===== PŘÍKLAD 4: Komerční nemovitosti - Brno =====
 def example_commercial_brno():
-    scraper = SrealityScraper(verbose=True)
-    
-    scraper.scrape_listings(
-        category_main=4,        # Komerční
-        category_type=1,        # Prodej
-        locality_region_id=20,  # Jihomoravský (Brno)
-        max_pages=2
+    """Makléři prodávající komerční nemovitosti v Jihomoravském kraji"""
+    scraper = AgentScraper(verbose=True)
+    scraper.scrape_agents(
+        category_main=4,
+        category_type=1,
+        locality_region_id=20,
+        max_pages=3,
+        fetch_details=True
     )
-    
-    scraper.save_to_excel("komercni_brno.xlsx")
+    scraper.save_to_excel("makleri_komercni_brno.xlsx")
 
-
-# ===== SPUŠTĚNÍ =====
 if __name__ == "__main__":
-    print("Vyber příklad:")
-    print("1 - Byty na prodej v Praze")
-    print("2 - Domy na pronájem - celá ČR")
-    print("3 - Pozemky v Moravskoslezském kraji")
-    print("4 - Komerční nemovitosti - Brno")
-    
-    choice = input("\nTvá volba (1-4): ").strip()
-    
+    print("Příklady:")
+    print("1 - Makléři prodávající byty v Praze")
+    print("2 - Makléři prodávající domy v celé ČR")
+    print("3 - Makléři prodávající komerční nemovitosti - Jihomoravský kraj")
+
+    choice = input("\nVolba (1-3): ").strip()
+
     if choice == "1":
         example_prague_flats()
     elif choice == "2":
-        example_houses_rent()
+        example_houses_all()
     elif choice == "3":
-        example_land_moravia()
-    elif choice == "4":
         example_commercial_brno()
     else:
-        print("❌ Neplatná volba!")
+        print("Neplatná volba")
