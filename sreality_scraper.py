@@ -679,6 +679,13 @@ class AgentScraper:
 
             worksheet = writer.sheets['Makléři']
 
+            # Najdi index sloupce "Odkazy"
+            odkazy_col_idx = None
+            for idx, col in enumerate(df.columns):
+                if col == 'Odkazy':
+                    odkazy_col_idx = idx
+                    break
+
             for idx, col in enumerate(df.columns):
                 max_length = max(
                     df[col].astype(str).apply(lambda x: len(str(x).split('\n')[0])).max(),
@@ -696,10 +703,32 @@ class AgentScraper:
 
                 worksheet.column_dimensions[chr(65 + idx)].width = max_length
 
-            from openpyxl.styles import Alignment
-            for row in worksheet.iter_rows(min_row=2):
-                for cell in row:
+            from openpyxl.styles import Alignment, Font
+
+            # Projdi všechny řádky a přidej hyperlinky
+            for row_idx, row in enumerate(worksheet.iter_rows(min_row=2), start=2):
+                for cell_idx, cell in enumerate(row):
                     cell.alignment = Alignment(wrap_text=True, vertical='top')
+
+                    # Pokud je to sloupec "Odkazy" a obsahuje URL
+                    if odkazy_col_idx is not None and cell_idx == odkazy_col_idx:
+                        cell_value = str(cell.value) if cell.value else ""
+                        if cell_value and cell_value != 'N/A':
+                            # Rozdělí více odkazů na samostatné řádky
+                            urls = [url.strip() for url in cell_value.split('\n') if url.strip()]
+                            if urls:
+                                # Pro první odkaz nastav hyperlink
+                                first_url = urls[0]
+                                if first_url.startswith('http'):
+                                    cell.hyperlink = first_url
+                                    cell.value = first_url
+                                    cell.font = Font(color="0563C1", underline="single")
+
+                                # Pokud je víc odkazů, zůstanou jako text na dalších řádcích
+                                # (Excel má limit 1 hyperlink na buňku, ale můžeme zachovat text)
+                                if len(urls) > 1:
+                                    all_urls_text = '\n'.join(urls)
+                                    cell.value = all_urls_text
 
         print(f"\n💾 Uloženo: {filepath}")
         print(f"📊 Počet makléřů: {len(results)}")
@@ -763,6 +792,13 @@ def _save_result_to_excel(result: ScraperResult, slug: str) -> Optional[str]:
         df.to_excel(writer, index=False, sheet_name='Makléři')
         worksheet = writer.sheets['Makléři']
 
+        # Najdi index sloupce "Odkazy"
+        odkazy_col_idx = None
+        for idx, col in enumerate(df.columns):
+            if col == 'Odkazy':
+                odkazy_col_idx = idx
+                break
+
         for idx, col in enumerate(df.columns):
             max_length = max(
                 df[col].astype(str).apply(lambda x: len(str(x).split('\n')[0])).max(),
@@ -780,10 +816,31 @@ def _save_result_to_excel(result: ScraperResult, slug: str) -> Optional[str]:
 
             worksheet.column_dimensions[chr(65 + idx)].width = max_length
 
-        from openpyxl.styles import Alignment
-        for row in worksheet.iter_rows(min_row=2):
-            for cell in row:
+        from openpyxl.styles import Alignment, Font
+
+        # Projdi všechny řádky a přidej hyperlinky
+        for row_idx, row in enumerate(worksheet.iter_rows(min_row=2), start=2):
+            for cell_idx, cell in enumerate(row):
                 cell.alignment = Alignment(wrap_text=True, vertical='top')
+
+                # Pokud je to sloupec "Odkazy" a obsahuje URL
+                if odkazy_col_idx is not None and cell_idx == odkazy_col_idx:
+                    cell_value = str(cell.value) if cell.value else ""
+                    if cell_value and cell_value != 'N/A':
+                        # Rozdělí více odkazů na samostatné řádky
+                        urls = [url.strip() for url in cell_value.split('\n') if url.strip()]
+                        if urls:
+                            # Pro první odkaz nastav hyperlink
+                            first_url = urls[0]
+                            if first_url.startswith('http'):
+                                cell.hyperlink = first_url
+                                cell.value = first_url
+                                cell.font = Font(color="0563C1", underline="single")
+
+                            # Pokud je víc odkazů, zůstanou jako text na dalších řádcích
+                            if len(urls) > 1:
+                                all_urls_text = '\n'.join(urls)
+                                cell.value = all_urls_text
 
     return str(filename)
 
