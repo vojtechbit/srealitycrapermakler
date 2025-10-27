@@ -266,9 +266,6 @@ class AgentScraper:
 
         API vrací celou řadu odkazů v různých strukturách. Preferujeme URL,
         které vede na veřejnou stránku (typicky obsahující "/detail/").
-        V některých případech je ukryta v sekci `seo`, jindy ve `_links`,
-        nebo mezi share odkazy. Pokud žádná varianta není k dispozici,
-        spadneme na poslední možnost s použitím `hash_id`.
         """
 
         base_url = self.config.BASE_URL.rstrip('/') + '/'
@@ -347,7 +344,6 @@ class AgentScraper:
             if href:
                 return href
 
-            # Některé položky mají seznam SEO URL
             seo_urls = seo.get('seo_urls') or seo.get('urls')
             href = extract_from_links(seo_urls)
             if href:
@@ -382,49 +378,9 @@ class AgentScraper:
                 if href:
                     return href
 
-                for value in data.values():
-                    nested = extract_generic(value)
-                    if nested:
-                        return nested
-
-            elif isinstance(data, list):
-                for item in data:
-                    nested = extract_generic(item)
-                    if nested:
-                        return nested
-            elif isinstance(data, str):
-                href = normalize_url(data)
-                if href:
-                    return href
-
             return None
 
-        def slugify(value: Optional[str]) -> Optional[str]:
-            if not value or not isinstance(value, str):
-                return None
-            cleaned = value.strip().lower()
-            if not cleaned:
-                return None
-            return cleaned.replace(' ', '-').replace('_', '-').replace('--', '-').strip('-')
-
-        def extract_slug(seo_dict: Dict, key: str) -> Optional[str]:
-            if not isinstance(seo_dict, dict):
-                return None
-            value = seo_dict.get(key)
-            if isinstance(value, dict):
-                for inner_key in ('value', 'seo_value', 'slug', 'code', 'id', 'key'):
-                    slug = slugify(value.get(inner_key))
-                    if slug:
-                        return slug
-                slug = slugify(value.get('name'))
-                if slug:
-                    return slug
-            elif isinstance(value, (str, int)):
-                slug = slugify(str(value))
-                if slug:
-                    return slug
-            return None
-
+        # Pokus se najít existující URL v datech
         for source in (detail, estate):
             if not isinstance(source, dict):
                 continue
@@ -437,48 +393,112 @@ class AgentScraper:
             if href:
                 return href
 
-        def manual_from_seo(source: Optional[Dict], hash_id: Optional[str]) -> Optional[str]:
-            if not isinstance(source, dict) or not hash_id:
+        # Sestav URL z API parametrů
+        import re
+        import unicodedata
+
+        def slugify_locality(value: Optional[str]) -> Optional[str]:
+            if not value or not isinstance(value, str):
                 return None
-
-            seo = source.get('seo')
-            if not isinstance(seo, dict):
+            normalized = unicodedata.normalize("NFKD", value)
+            ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
+            ascii_value = ascii_value.lower()
+            ascii_value = re.sub(r"[^a-z0-9]+", "-", ascii_value)
+            ascii_value = ascii_value.strip("-")
+            if not ascii_value:
                 return None
+            parts = [part for part in ascii_value.split("-") if part and not part.isdigit()]
+            return "-".join(parts) or None
 
-            category_type = extract_slug(seo, 'category_type') or extract_slug(seo, 'category_type_cb')
-            category_main = extract_slug(seo, 'category_main') or extract_slug(seo, 'category_main_cb')
-            category_sub = extract_slug(seo, 'category_sub') or extract_slug(seo, 'category_sub_cb')
-            locality_slug = extract_slug(seo, 'locality') or extract_slug(seo, 'locality_value')
-
-            parts = [category_type, category_main]
-            if category_sub:
-                parts.append(category_sub)
-            if locality_slug:
-                parts.append(locality_slug)
-
-            if len(parts) < 3:  # potřebujeme alespoň typ, kategorii a lokalitu
-                return None
-
-            parts.append(str(hash_id))
-            path = '/'.join(filter(None, parts))
-            return urljoin(base_url, f"detail/{path}")
-
-        # Poslední pokus: složíme URL z hash_id, pokud žádné lepší není
+        # Získej hash_id
         hash_id = None
+        seo = None
         for source in (detail, estate):
             if isinstance(source, dict):
-                hash_id = source.get('hash_id') or hash_id
-                if hash_id:
+                if not hash_id:
+                    hash_id = source.get('hash_id') or source.get('hashId')
+                if not seo and isinstance(source.get('seo'), dict):
+                    seo = source.get('seo')
+
+        if not hash_id:
+            return None
+
+        # Získej SEO parametry
+        category_type_cb = seo.get("category_type_cb") if isinstance(seo, dict) else None
+        category_main_cb = seo.get("category_main_cb") if isinstance(seo, dict) else None
+
+        # Mapování kódů
+        type_map = {1: "prodej", 2: "pronajem", 3: "drazby"}
+        main_map = {1: "byt", 2: "dum", 3: "pozemek", 4: "komercni", 5: "ostatni"}
+
+        # Podkategorie - hledej v názvu
+        sub_text = None
+        name = ""
+        for source in (estate, detail):
+            if isinstance(source, dict) and source.get("name"):
+                name = source.get("name", "")
+                break
+
+        # Pro byty hledej dispozici
+        if category_main_cb == 1:
+            match = re.search(r'\d\+(?:kk|\d)', name, re.IGNORECASE)
+            if match:
+                sub_text = match.group(0).lower()
+
+        # Lokalita
+        locality = seo.get("locality") if isinstance(seo, dict) else None
+        if not locality:
+            for source in (estate, detail):
+                if isinstance(source, dict) and source.get("locality"):
+                    locality = slugify_locality(source.get("locality"))
                     break
 
-        manual = manual_from_seo(detail or estate, hash_id)
-        if manual:
-            return manual
+        # Pokud máme categoryUrl a localityUrl (starý způsob)
+        category_url = seo.get("categoryUrl") or seo.get("category_url") if isinstance(seo, dict) else None
+        locality_url = seo.get("localityUrl") or seo.get("locality_url") if isinstance(seo, dict) else None
 
-        if hash_id:
-            return urljoin(base_url, f"detail/{hash_id}")
+        if isinstance(category_url, str) and category_url.strip():
+            segments = ["detail"]
+            segments.extend(part for part in category_url.strip("/").split("/") if part)
 
-        return None
+            if isinstance(locality_url, str) and locality_url.strip():
+                segments.extend(part for part in locality_url.strip("/").split("/") if part)
+            elif locality:
+                segments.append(locality)
+
+            segments.append(str(hash_id))
+            cleaned_segments = [segment for segment in segments if isinstance(segment, str) and segment]
+            if len(cleaned_segments) >= 2:
+                path = "/".join(cleaned_segments)
+                return urljoin(base_url, path)
+
+        # Nový způsob - z category_type_cb, category_main_cb
+        if category_type_cb and category_main_cb:
+            segments = ["detail"]
+
+            type_text = type_map.get(category_type_cb)
+            if type_text:
+                segments.append(type_text)
+
+            main_text = main_map.get(category_main_cb)
+            if main_text:
+                segments.append(main_text)
+
+            if sub_text:
+                segments.append(sub_text)
+
+            if locality:
+                segments.append(locality)
+
+            segments.append(str(hash_id))
+
+            cleaned_segments = [segment for segment in segments if isinstance(segment, str) and segment]
+            if len(cleaned_segments) >= 4:
+                path = "/".join(cleaned_segments)
+                return urljoin(base_url, path)
+
+        # Fallback - jen ID
+        return urljoin(base_url, f"detail/{hash_id}")
 
     def _find_company_name(self, data: Any) -> Optional[str]:
         return self._find_first_match(
