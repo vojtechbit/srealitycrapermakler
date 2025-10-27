@@ -73,12 +73,9 @@ def _slugify_locality(value: Optional[str]) -> Optional[str]:
     ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
     ascii_value = ascii_value.lower()
     ascii_value = re.sub(r"[^a-z0-9]+", "-", ascii_value)
+    ascii_value = re.sub(r"-+", "-", ascii_value)
     ascii_value = ascii_value.strip("-")
-    if not ascii_value:
-        return None
-    parts = [part for part in ascii_value.split("-") if part and not part.isdigit()]
-    slug = "-".join(parts)
-    return slug or None
+    return ascii_value or None
 
 
 @register
@@ -334,6 +331,10 @@ class SrealityScraper(BaseScraper):
             "detail_url",
             "detailUrl",
             "permalink",
+            "public_url",
+            "publicUrl",
+            "canonicalUrl",
+            "canonical_url",
         )
         for key in priority_keys:
             candidate = data.get(key)
@@ -341,7 +342,17 @@ class SrealityScraper(BaseScraper):
             if url:
                 return url
 
-        for key in ("seo", "_links", "links"):
+        nested_keys = (
+            "seo",
+            "_links",
+            "links",
+            "share",
+            "share_links",
+            "shareLinks",
+            "social_sharing",
+            "socialSharing",
+        )
+        for key in nested_keys:
             candidate = data.get(key)
             url = find_url(candidate)
             if url:
