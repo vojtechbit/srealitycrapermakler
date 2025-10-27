@@ -19,13 +19,62 @@ def _available_slugs() -> List[str]:
 
 
 def _prompt_for_platform() -> List[str]:
-    scrapers = list_scrapers()
-    print("Dostupné platformy:")
-    for scraper in scrapers:
-        print(f"  - {scraper.slug:15s} {scraper.name}")
-    selected = input("Zadejte platformy oddělené čárkou (např. 'sreality,linkedin'): ")
-    slugs = [slug.strip() for slug in selected.split(",") if slug.strip()]
-    return slugs or ["sreality"]
+    scrapers = sorted(list_scrapers(), key=lambda s: s.slug)
+
+    print("\n" + "="*60)
+    print("DOSTUPNÉ PLATFORMY:")
+    print("="*60)
+    for idx, scraper in enumerate(scrapers, start=1):
+        print(f"  {idx:>2}. {scraper.name:25s} ({scraper.slug})")
+    print(f"   0. VŠECHNY PLATFORMY")
+    print("="*60)
+
+    print("\nMůžeš vybrat:")
+    print("  • Jedno číslo (např. '1' pro první platformu)")
+    print("  • Více čísel oddělených čárkou (např. '1,2,3')")
+    print("  • Slug platformy (např. 'sreality')")
+    print("  • Více slugů oddělených čárkou (např. 'sreality,bezrealitky')")
+    print("  • '0' nebo 'all' pro všechny platformy")
+
+    while True:
+        selected = input("\nVyber platformy [1]: ").strip()
+
+        # Defaultně Sreality
+        if not selected:
+            return ["sreality"]
+
+        # Všechny platformy
+        if selected in ("0", "all", "všechny", "vsechny"):
+            return [s.slug for s in scrapers]
+
+        # Parsování výběru
+        slugs = []
+        parts = [p.strip() for p in selected.split(",") if p.strip()]
+
+        for part in parts:
+            # Číslo platformy
+            if part.isdigit():
+                idx = int(part)
+                if 1 <= idx <= len(scrapers):
+                    slugs.append(scrapers[idx - 1].slug)
+                else:
+                    print(f"⚠️  Neplatné číslo: {idx}")
+                    slugs = []
+                    break
+            # Slug platformy
+            else:
+                matching = [s for s in scrapers if s.slug == part.lower()]
+                if matching:
+                    slugs.append(matching[0].slug)
+                else:
+                    print(f"⚠️  Neznámá platforma: {part}")
+                    slugs = []
+                    break
+
+        if slugs:
+            return slugs
+
+        print("Zkus to prosím znovu.\n")
 
 
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -82,7 +131,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--prompt",
         action="store_true",
-        help="Interaktivně se zeptá na výběr platformy, pokud není zadána.",
+        help="Interaktivně se zeptá na výběr platforem (můžeš vybrat více najednou).",
     )
     return parser.parse_args(argv)
 
