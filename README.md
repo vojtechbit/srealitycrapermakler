@@ -115,10 +115,10 @@ Pokud vidíš všechny ✅, vše funguje a můžeš pokračovat. Pokud vidíš �
 ### Krok 5: Spusť scraper
 
 ```bash
-python3 sreality_scraper.py
+python3 scrape_agents.py --prompt
 ```
 
-Program se tě zeptá na několik otázek (viz [Použití scraperu](#-použití-scraperu) níže).
+Program se nejprve zeptá, z jakých platforem chceš stahovat data, a následně na parametry Sreality.cz (viz [Použití scraperu](#-použití-scraperu) níže).
 
 ---
 
@@ -234,10 +234,10 @@ Pokud vidíš všechny ✅, vše funguje a můžeš pokračovat. Pokud vidíš �
 ### Krok 5: Spusť scraper
 
 ```cmd
-python sreality_scraper.py
+python scrape_agents.py --prompt
 ```
 
-Program se tě zeptá na několik otázek (viz [Použití scraperu](#-použití-scraperu) níže).
+Program se nejprve zeptá, z jakých platforem chceš stahovat data, a následně na parametry Sreality.cz (viz [Použití scraperu](#-použití-scraperu) níže).
 
 **Poznámka pro Windows:**
 - Na Windows používej `python` (ne `python3`)
@@ -249,120 +249,95 @@ Program se tě zeptá na několik otázek (viz [Použití scraperu](#-použití-
 
 ## 🚀 Použití scraperu
 
-### Interaktivní režim
+### Rychlý start
 
-Po spuštění scraperu (Mac: `python3 sreality_scraper.py`, Windows: `python sreality_scraper.py`) se program zeptá:
+- **macOS:** `python3 scrape_agents.py --prompt`
+- **Windows:** `python scrape_agents.py --prompt`
 
-**1. Typ nemovitosti (1-5):**
-- `1` = Byty
-- `2` = Domy
-- `3` = Pozemky
-- `4` = Komerční
-- `5` = Ostatní
+Skript se nejprve zeptá na výběr platforem (zadej např. `sreality` nebo více hodnot oddělených čárkou), poté na parametry specifické pro Sreality.cz:
 
-**2. Typ inzerátu (1-3):**
-- `1` = Prodej
-- `2` = Pronájem
-- `3` = Dražby
+1. **Typ nemovitosti (1-5)** – Byty, Domy, Pozemky, Komerční, Ostatní.
+2. **Typ inzerátu (1-3)** – Prodej, Pronájem, Dražby.
+3. **Kraj (volitelné číslo)** – např. `10` pro Prahu. Prázdné = celá ČR.
+4. **Maximální počet stránek** – každá stránka ≈ 60 inzerátů. Hodnota `0` nebo režim `--full-scan` znamená pokus o kompletní průchod.
 
-**3. Kraj (volitelné):**
-- Zadej číslo kraje (viz tabulka níže) nebo nech prázdné pro celou ČR
-- Příklad: `10` pro Prahu
+Aktuálně je plně implementovaný scraper pro **Sreality.cz**. Ostatní platformy jsou zaregistrované jako moduly se stručným popisem omezení – ve výstupu se zobrazí varování, že je potřeba doplnit autentizaci nebo parser.
 
-**4. Max. počet stránek:**
-- 1 stránka = cca 60 inzerátů
-- Doporučuji: `5-10` pro začátek
-- **Zadej `0` pro VŠECHNY stránky** (celé Sreality) - VAROVÁNÍ: může trvat hodiny!
+### Důležité přepínače CLI
 
-**5. Stahovat detaily? (y/n):**
-- `y` = Přesnější data (telefon, email), ale **pomalejší** (2-3x déle)
-- `n` = Rychlejší, ale méně informací (často chybí telefony/emaily)
+| Přepínač | Význam |
+|----------|--------|
+| `--platform/-p slug` | Spustí jen vybrané platformy (např. `-p sreality -p bezrealitky`). |
+| `--all-platforms` | Pokusí se spustit všechny registrované zdroje. |
+| `--full-scan` | Pokud to platforma podporuje, projde všechny stránky bez limitu. |
+| `--max-pages N` | Ručně omezí počet stránek (např. `--max-pages 5`). |
+| `--category-main` / `--category-type` / `--locality` | Parametry předané scraperu Sreality.cz. |
+| `--output cesta.xlsx` | Uloží sjednocenou tabulku do Excelu. |
+| `--list` | Vypíše dostupné platformy a skončí. |
 
-### Příklad použití
+### Kompletní průchod přes všechny zdroje
 
 ```
-Typ nemovitosti: 1=Byty, 2=Domy, 3=Pozemky, 4=Komerční, 5=Ostatní
-Typ [1]: 1
-
-Typ inzerátu: 1=Prodej, 2=Pronájem, 3=Dražby
-Typ [1]: 1
-
-Kraj (10=Praha, 11=Středočeský, prázdné=celá ČR)
-Kraj []: 10
-
-Max. stránek [10]: 5
-
-Stahovat detaily? (pomalejší, ale přesnější) [y/n]: y
+python3 scrape_agents.py --all-platforms --full-scan --output data/full_scan.xlsx
 ```
 
-Toto stáhne makléře prodávající byty v Praze z prvních 5 stránek (cca 300 inzerátů).
+Upozornění: většina platforem zatím vrací pouze varování, protože vyžadují přihlášení, tokeny nebo headless prohlížeč. Skript vše sepíše v přehledu, takže víš, co je potřeba doplnit.
 
----
+### Limity platforem (souhrn)
 
-## 📊 Výstup
+| Platforma | Popis limitů |
+|-----------|---------------|
+| Sreality.cz | Doporučeno držet cca 60 detailů/min, reagovat na HTTP 429 náhodným čekáním. |
+| Bezrealitky.cz | API chráněné tokeny a reCAPTCHA – nutné reverzní inženýrství. |
+| Reality.iDNES.cz | Silná anti-bot ochrana (Akami/Arkose), doporučené prohlížečové řešení. |
+| Reality.cz | Nekonzistentní HTML, nutný parser typu BeautifulSoup a pomalejší tempo. |
+| Realtia.cz | Partner API s klíčem, limit cca 120 požadavků/hod. |
+| UlovDomov.cz | Vue.js + CSRF tokeny, doporučeno max. 1 požadavek/s. |
+| LinkedIn | Silné restrikce, pouze přes oficiální API/OAuth. |
+| Registr OSVČ | Veřejné SOAP rozhraní, nutné dotazování podle jména/IČO. |
 
-### Kde se uloží Excel?
+### Sloučení více exportů do jedné tabulky
 
-Excel soubor se uloží do složky **`data/`** ve složce projektu s názvem `makleri_YYYYMMDD_HHMMSS.xlsx`.
+Pro deduplikaci kontaktů z více Excelů použij skript `merge_contacts.py`:
 
-**Úplná cesta:**
 ```
-# Mac:
-/Users/tvojejmeno/Desktop/srealitycrapermakler/data/makleri_20250127_143022.xlsx
-
-# Windows:
-C:\Users\tvojejmeno\Desktop\srealitycrapermakler\data\makleri_20250127_143022.xlsx
-```
-
-Program ti ukáže přesnou cestu na konci:
-```
-# Mac:
-📂 Excel soubor: /Users/vojtechbroucek/Desktop/srealitycrapermakler/data/makleri_20250127_143022.xlsx
-
-# Windows:
-📂 Excel soubor: C:\Users\vojtechbroucek\Desktop\srealitycrapermakler\data\makleri_20250127_143022.xlsx
+python3 merge_contacts.py data/makleri_sreality.xlsx data/dalsi_zdroj.xlsx -o data/slouceno.xlsx
 ```
 
-### Jak poznat že to funguje?
+Skript:
 
-**Když to FUNGUJE správně, uvidíš:**
-```
-📄 Stránka 1/10... ✓ 60 inzerátů | 45 makléřů
-📄 Stránka 2/10... ✓ 60 inzerátů | 78 makléřů
-📄 Stránka 3/10... ✓ 60 inzerátů | 102 makléřů
-...
-✨ Dokončeno! 156 makléřů z 600 inzerátů
-📂 Excel soubor: /Users/.../data/makleri_20250127_143022.xlsx
-```
+1. Načte libovolný počet `.xlsx` souborů.
+2. Znormalizuje jména, telefony a e-maily (bez diakritiky, sjednocené formáty).
+3. Sloučí záznamy se shodným jménem/telefonem/e-mailem do jednoho řádku.
+4. Zachová unikátní odkazy a doplňkové informace.
 
-**Když se to POKAZÍ (Cloudflare blokace):**
-```
-📄 Stránka 1/10... ❌ CHYBA! Pravděpodobně Cloudflare blokace.
-   Zkus to znovu za chvíli, nebo z jiné sítě.
-```
+### Struktura výstupního Excelu
 
-**Co dělat při chybě:**
-1. Počkej 10-15 minut
-2. Zkus znovu
-3. Vypni VPN (pokud používáš)
-4. Zkus z jiné WiFi (např. mobilní hotspot)
-
-### Sloupce v Excelu:
+Každý řádek má jednotnou strukturu napříč platformami:
 
 | Sloupec | Popis |
 |---------|-------|
-| **Jméno makléře** | Celé jméno makléře |
-| **Telefon** | Telefonní číslo (pokud dostupné) |
-| **Email** | Email (pokud dostupný) |
-| **Realitní kancelář** | Název RK (za koho makléř prodává) |
-| **Kraj** | Kraj kde makléř působí |
-| **Město** | Město kde makléř působí |
-| **Počet inzerátů** | Kolik inzerátů má tento makléř |
-| **Typy nemovitostí** | Jaké typy prodává (Byt, Dům, atd.) |
-| **Inzeráty** | Ukázka prvních 5 inzerátů |
-| **Odkazy** | Odkazy na prvních 3 inzeráty |
+| `zdroj` | Název platformy. |
+| `jmeno_maklere` | Jméno makléře. |
+| `telefon` | Telefon (pokud je dostupný). |
+| `email` | Email (pokud je dostupný). |
+| `realitni_kancelar` | Název realitní kanceláře. |
+| `kraj` | Kraj z popisu inzerátu. |
+| `mesto` | Město/lokalita. |
+| `specializace` | Shrnutí typu nemovitostí (např. „Byty - Prodej“). |
+| `detailni_informace` | Textový popis inzerátu/zdroje. |
+| `odkazy` | Veřejné URL na inzeráty nebo profily. |
 
-Data jsou seřazená podle počtu inzerátů (nejvíce aktivní makléři nahoře).
+Sreality.cz navíc přidává metadata s časem exportu, počtem makléřů a použitou kategorií (viz konzole po skončení).
+
+Excel se automaticky ukládá do složky `data/` (vytvoří se při prvním běhu) pod názvem `makleri_YYYYMMDD_HHMMSS.xlsx`, pokud použiješ původní Sreality skript nebo si zadáš `--output` v nové CLI utilitě.
+
+### Když scraper narazí na ochrany
+
+- Vyčkej několik minut a spusť ho znovu.
+- Zvaž snížení `--max-pages` nebo vypni `--full-scan`.
+- Nepoužívej VPN; případně zkus jinou IP adresu.
+- Sleduj varování v konzoli – u neimplementovaných platforem se zobrazí jasná zpráva.
 
 ---
 
@@ -504,7 +479,7 @@ python test_instalace.py
 **Řešení:**
 1. Zkus bez VPN
 2. Zkus z jiné sítě (mobilní data)
-3. Zvyš delay v kódu (otevři `sreality_scraper.py` a změň `MIN_DELAY = 3`, `MAX_DELAY = 6`)
+3. Zvyš delay v kódu (otevři `scrapers/sreality.py` a uprav `_Config.min_delay` / `_Config.max_delay`)
 4. Počkaj pár hodin a zkus znovu
 
 ---
@@ -639,7 +614,14 @@ Obsahuje:
 
 ```
 srealitycrapermakler/
-├── sreality_scraper.py    # Hlavní scraper
+├── scrape_agents.py       # Nová CLI utilita pro všechny platformy
+├── merge_contacts.py      # Sloučení více Excelů s deduplikací
+├── scrapers/              # Moduly pro jednotlivé platformy
+│   ├── base.py            # Společné abstrakce
+│   ├── sreality.py        # Implementace Sreality.cz
+│   ├── bezrealitky.py     # Základ pro Bezrealitky.cz (zatím upozornění)
+│   └── ...                # Další zdroje / stubs
+├── sreality_scraper.py    # Původní jednoplatf. skript (ponechán pro kompatibilitu)
 ├── examples.py            # Hotové příklady
 ├── test_instalace.py      # Test instalace knihoven
 ├── requirements.txt       # Závislosti
