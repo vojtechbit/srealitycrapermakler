@@ -4,10 +4,11 @@ import time
 import random
 import pandas as pd
 from datetime import datetime
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Callable, Any
 import json
 from pathlib import Path
 from collections import defaultdict
+from urllib.parse import urljoin
 
 class Config:
     BASE_URL = "https://www.sreality.cz"
@@ -189,37 +190,38 @@ class AgentScraper:
 
             if seller:
                 agent_name = seller.get('user_name') or seller.get('name')
-                company_name = seller.get('company_name')
+                company_name = (
+                    seller.get('company_name')
+                    or seller.get('company', {}).get('name')
+                    or seller.get('organization', {}).get('name')
+                )
 
             if company and not company_name:
-                company_name = company.get('name')
+                company_name = company.get('name') or company.get('company_name')
 
             if broker and not agent_name:
                 agent_name = broker.get('user_name') or broker.get('name')
 
-            if not company_name and seller:
-                company_name = seller.get('name')
+            if not company_name:
+                company_name = (
+                    self._find_company_name(detail)
+                    or self._find_company_name(estate)
+                )
 
-            phones = detail.get('phones', [])
-            if phones and isinstance(phones, list):
-                for phone in phones:
-                    if isinstance(phone, dict) and 'number' in phone:
-                        agent_phone = phone.get('number')
-                        break
+            agent_phone = agent_phone or self._find_first_phone(detail)
+            if not agent_phone:
+                agent_phone = self._find_first_phone(estate)
 
-            emails = detail.get('emails', [])
-            if emails and isinstance(emails, list):
-                for email in emails:
-                    if isinstance(email, dict) and 'email' in email:
-                        agent_email = email.get('email')
-                        break
+            agent_email = agent_email or self._find_first_email(detail)
+            if not agent_email:
+                agent_email = self._find_first_email(estate)
 
             if not agent_name and not agent_phone and not agent_email:
                 agent_name = "Neznámý makléř"
 
             agent_key = f"{agent_name}_{company_name}_{agent_phone}"
 
-            estate_url = f"{self.config.BASE_URL}{estate.get('seo', {}).get('href', '')}" if estate.get('seo', {}).get('href') else None
+            estate_url = self._build_estate_url(estate)
             estate_name = estate.get('name', 'N/A')
             locality = estate.get('locality', 'N/A')
             price = estate.get('price_czk', {}).get('value_raw') or estate.get('price')
@@ -254,6 +256,129 @@ class AgentScraper:
         except Exception as e:
             if self.verbose:
                 print(f"  ⚠️  Chyba: {str(e)}")
+
+    def _build_estate_url(self, estate: Dict) -> Optional[str]:
+        href = None
+
+        seo = estate.get('seo', {}) if isinstance(estate, dict) else {}
+        if isinstance(seo, dict):
+            href = seo.get('href')
+
+        if not href:
+            links = estate.get('_links', {}) if isinstance(estate, dict) else {}
+            if isinstance(links, dict):
+                href = links.get('self', {}).get('href') if isinstance(links.get('self'), dict) else links.get('self')
+
+        if not href and isinstance(estate, dict):
+            href = estate.get('url') or estate.get('link')
+
+        if not href:
+            return None
+
+        if href.startswith('http'):
+            return href
+
+        base = self.config.BASE_URL.rstrip('/') + '/'
+        path = href.lstrip('/')
+        return urljoin(base, path)
+
+    def _find_company_name(self, data: Any) -> Optional[str]:
+        return self._find_first_match(
+            data,
+            search_keys=("company", "organization", "organisation", "agency"),
+            extractor=self._extract_company_value
+        )
+
+    def _extract_company_value(self, value: Any) -> Optional[str]:
+        if isinstance(value, dict):
+            for key in ("name", "company_name", "title"):
+                if key in value:
+                    extracted = self._extract_company_value(value[key])
+                    if extracted:
+                        return extracted
+        elif isinstance(value, list):
+            for item in value:
+                extracted = self._extract_company_value(item)
+                if extracted:
+                    return extracted
+        elif isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned:
+                return cleaned
+        return None
+
+    def _find_first_phone(self, data: Any) -> Optional[str]:
+        return self._find_first_match(
+            data,
+            search_keys=("phone", "phones", "mobile", "telefon", "tel"),
+            extractor=self._extract_phone_value
+        )
+
+    def _find_first_email(self, data: Any) -> Optional[str]:
+        return self._find_first_match(
+            data,
+            search_keys=("email", "mail"),
+            extractor=self._extract_email_value
+        )
+
+    def _find_first_match(
+        self,
+        data: Any,
+        search_keys: tuple,
+        extractor: Callable[[Any], Optional[str]]
+    ) -> Optional[str]:
+        if isinstance(data, dict):
+            for key, value in data.items():
+                key_lower = str(key).lower()
+                if any(search_key in key_lower for search_key in search_keys):
+                    extracted = extractor(value)
+                    if extracted:
+                        return extracted
+                nested = self._find_first_match(value, search_keys, extractor)
+                if nested:
+                    return nested
+        elif isinstance(data, list):
+            for item in data:
+                nested = self._find_first_match(item, search_keys, extractor)
+                if nested:
+                    return nested
+        return None
+
+    def _extract_phone_value(self, value: Any) -> Optional[str]:
+        if isinstance(value, dict):
+            for key in ("number", "value", "formatted", "phone"):
+                if key in value:
+                    extracted = self._extract_phone_value(value[key])
+                    if extracted:
+                        return extracted
+        elif isinstance(value, list):
+            for item in value:
+                extracted = self._extract_phone_value(item)
+                if extracted:
+                    return extracted
+        elif isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned:
+                return cleaned
+        return None
+
+    def _extract_email_value(self, value: Any) -> Optional[str]:
+        if isinstance(value, dict):
+            for key in ("email", "value"):
+                if key in value:
+                    extracted = self._extract_email_value(value[key])
+                    if extracted:
+                        return extracted
+        elif isinstance(value, list):
+            for item in value:
+                extracted = self._extract_email_value(item)
+                if extracted:
+                    return extracted
+        elif isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned and "@" in cleaned:
+                return cleaned
+        return None
 
     def _extract_region(self, locality: str) -> str:
         if not locality:
