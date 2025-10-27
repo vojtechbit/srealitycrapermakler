@@ -84,8 +84,9 @@ class AgentScraper:
                      max_pages: Optional[int] = None,
                      fetch_details: bool = True) -> List[Dict]:
 
+        unlimited = max_pages is None
         if max_pages is None:
-            max_pages = self.config.MAX_PAGES
+            max_pages = 999999
 
         category_main_name = self.config.CATEGORY_MAIN.get(category_main, "Neznámé")
         category_type_name = self.config.CATEGORY_TYPE.get(category_type, "Neznámé")
@@ -95,7 +96,10 @@ class AgentScraper:
         print(f"📋 Inzeráty: {category_main_name} - {category_type_name}")
         if locality_region_id:
             print(f"📍 Region ID: {locality_region_id}")
-        print(f"📄 Max. stránek: {max_pages}")
+        if unlimited:
+            print(f"📄 Režim: NEOMEZENÝ (všechny stránky)")
+        else:
+            print(f"📄 Max. stránek: {max_pages}")
         print(f"=" * 60 + "\n")
 
         page = 1
@@ -113,12 +117,16 @@ class AgentScraper:
                 params['locality_region_id'] = locality_region_id
 
             if self.verbose:
-                print(f"📄 Stránka {page}/{max_pages}...", end=' ')
+                if unlimited:
+                    print(f"📄 Stránka {page}...", end=' ')
+                else:
+                    print(f"📄 Stránka {page}/{max_pages}...", end=' ')
 
             data = self._make_request(self.config.API_URL, params)
 
             if not data:
-                print(f"❌ Chyba při stahování")
+                print(f"❌ CHYBA! Pravděpodobně Cloudflare blokace.")
+                print(f"   Zkus to znovu za chvíli, nebo z jiné sítě.")
                 break
 
             estates = data.get('_embedded', {}).get('estates', [])
@@ -321,19 +329,35 @@ def main():
 
     scraper = AgentScraper(verbose=True)
 
-    print("Typ nemovitosti: 1=Byty, 2=Domy, 3=Pozemky, 4=Komerční, 5=Ostatní")
+    print("Typ nemovitosti:")
+    print("  1=Byty  2=Domy  3=Pozemky  4=Komerční  5=Ostatní")
     category_main = int(input("Typ [1]: ") or "1")
 
-    print("\nTyp inzerátu: 1=Prodej, 2=Pronájem, 3=Dražby")
+    print("\nTyp inzerátu:")
+    print("  1=Prodej  2=Pronájem  3=Dražby")
     category_type = int(input("Typ [1]: ") or "1")
 
-    print("\nKraj (10=Praha, 11=Středočeský, prázdné=celá ČR)")
-    locality = input("Kraj []: ").strip()
+    print("\nKraj (prázdné = celá ČR):")
+    print("  10=Praha  11=Středočeský  12=Jihočeský  13=Plzeňský")
+    print("  14=Karlovarský  15=Ústecký  16=Liberecký")
+    print("  17=Královéhradecký  18=Pardubický  19=Vysočina")
+    print("  20=Jihomoravský  21=Olomoucký  22=Zlínský  23=Moravskoslezský")
+    locality = input("Kraj [celá ČR]: ").strip()
     locality_id = int(locality) if locality else None
 
-    max_pages = int(input("\nMax. stránek [10]: ") or "10")
+    print("\nMax. počet stránek (0 = všechny stránky, může trvat hodiny!):")
+    max_pages_input = input("Max. stránek [10]: ").strip() or "10"
+    max_pages = None if max_pages_input == "0" else int(max_pages_input)
 
     fetch_details = input("\nStahovat detaily? (pomalejší, ale přesnější) [y/n]: ").lower() == 'y'
+
+    print("\n" + "="*60)
+    if max_pages is None:
+        print("⚠️  POZOR: Projdu VŠECHNY stránky - může trvat velmi dlouho!")
+    print(f"📂 Excel se uloží do: {scraper.config.OUTPUT_DIR}")
+    print("="*60 + "\n")
+
+    input("Stiskni ENTER pro start... (nebo Ctrl+C pro zrušení)")
 
     scraper.scrape_agents(
         category_main=category_main,
@@ -344,9 +368,10 @@ def main():
     )
 
     if scraper.agents:
-        scraper.save_to_excel()
+        filepath = scraper.save_to_excel()
+        print(f"\n📂 Excel soubor: {filepath}")
 
-    print("\n✨ Hotovo!\n")
+    print("\n✨ Hotovo! Můžeš zavřít Terminal.\n")
 
 if __name__ == "__main__":
     main()

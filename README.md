@@ -137,6 +137,7 @@ Po spuštění `python3 sreality_scraper.py` se program zeptá:
 **4. Max. počet stránek:**
 - 1 stránka = cca 60 inzerátů
 - Doporučuji: `5-10` pro začátek
+- **Zadej `0` pro VŠECHNY stránky** (celé Sreality) - VAROVÁNÍ: může trvat hodiny!
 
 **5. Stahovat detaily? (y/n):**
 - `y` = Přesnější data (telefon, email), ale **pomalejší** (2-3x déle)
@@ -165,7 +166,43 @@ Toto stáhne makléře prodávající byty v Praze z prvních 5 stránek (cca 30
 
 ## 📊 Výstup
 
-Excel soubor se uloží do složky **`data/`** s názvem `makleri_YYYYMMDD_HHMMSS.xlsx`.
+### Kde se uloží Excel?
+
+Excel soubor se uloží do složky **`data/`** ve složce projektu s názvem `makleri_YYYYMMDD_HHMMSS.xlsx`.
+
+**Úplná cesta:**
+```
+/Users/tvojejmeno/Desktop/srealitycrapermakler/data/makleri_20250127_143022.xlsx
+```
+
+Program ti ukáže přesnou cestu na konci:
+```
+📂 Excel soubor: /Users/vojtechbroucek/Desktop/srealitycrapermakler/data/makleri_20250127_143022.xlsx
+```
+
+### Jak poznat že to funguje?
+
+**Když to FUNGUJE správně, uvidíš:**
+```
+📄 Stránka 1/10... ✓ 60 inzerátů | 45 makléřů
+📄 Stránka 2/10... ✓ 60 inzerátů | 78 makléřů
+📄 Stránka 3/10... ✓ 60 inzerátů | 102 makléřů
+...
+✨ Dokončeno! 156 makléřů z 600 inzerátů
+📂 Excel soubor: /Users/.../data/makleri_20250127_143022.xlsx
+```
+
+**Když se to POKAZÍ (Cloudflare blokace):**
+```
+📄 Stránka 1/10... ❌ CHYBA! Pravděpodobně Cloudflare blokace.
+   Zkus to znovu za chvíli, nebo z jiné sítě.
+```
+
+**Co dělat při chybě:**
+1. Počkej 10-15 minut
+2. Zkus znovu
+3. Vypni VPN (pokud používáš)
+4. Zkus z jiné WiFi (např. mobilní hotspot)
 
 ### Sloupce v Excelu:
 
@@ -220,14 +257,15 @@ Data jsou seřazená podle počtu inzerátů (nejvíce aktivní makléři nahoř
 
 ### Časové odhady:
 
-| Režim | Čas na stránku (60 inzerátů) | Čas na 5 stránek (300 inzerátů) |
-|-------|-------------------------------|-----------------------------------|
-| **Bez detailů** (`fetch_details=False`) | ~3-5 sekund | ~15-25 sekund |
-| **S detaily** (`fetch_details=True`) | ~3-5 minut | ~15-25 minut |
+| Režim | Čas na stránku (60 inzerátů) | Čas na 5 stránek (300 inzerátů) | Čas na VŠECHNY stránky (0) |
+|-------|-------------------------------|-----------------------------------|----------------------------|
+| **Bez detailů** (`fetch_details=False`) | ~3-5 sekund | ~15-25 sekund | **1-2 hodiny** |
+| **S detaily** (`fetch_details=True`) | ~3-5 minut | ~15-25 minut | **10-20 hodin!** |
 
 **Doporučení:**
 - Pro rychlý test: `fetch_details=False`, `max_pages=2-3`
 - Pro kompletní data: `fetch_details=True`, `max_pages=10-20`
+- Pro CELÉ Sreality: `fetch_details=False`, `max_pages=0` (zadej 0) - **nech to běžet přes noc!**
 
 ---
 
