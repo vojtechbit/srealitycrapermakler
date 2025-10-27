@@ -150,6 +150,62 @@ def _save_to_excel(result: ScraperResult, output: Path) -> None:
     df.to_excel(output, index=False)
 
 
+def _prompt_for_scraping_params(platforms: List[str]) -> dict:
+    """Interaktivně se ptá na parametry scrapování."""
+    params = {}
+
+    # Jestli některá platforma potřebuje Sreality-specifické parametry
+    needs_sreality_params = "sreality" in platforms
+
+    if needs_sreality_params:
+        print("\n" + "="*60)
+        print("PARAMETRY PRO SREALITY:")
+        print("="*60)
+
+        print("\nTyp nemovitosti:")
+        print("  1=Byty  2=Domy  3=Pozemky  4=Komerční  5=Ostatní")
+        category_main = input("Vyber typ [1]: ").strip() or "1"
+        params["category_main"] = int(category_main)
+
+        print("\nTyp inzerátu:")
+        print("  1=Prodej  2=Pronájem  3=Dražby")
+        category_type = input("Vyber typ [1]: ").strip() or "1"
+        params["category_type"] = int(category_type)
+
+        print("\nKraj (prázdné = celá ČR):")
+        print("  10=Praha  11=Středočeský  12=Jihočeský  13=Plzeňský")
+        print("  14=Karlovarský  15=Ústecký  16=Liberecký")
+        print("  17=Královéhradecký  18=Pardubický  19=Vysočina")
+        print("  20=Jihomoravský  21=Olomoucký  22=Zlínský  23=Moravskoslezský")
+        locality = input("Vyber kraj [celá ČR]: ").strip()
+        params["locality"] = int(locality) if locality else None
+    else:
+        # Pro ostatní platformy použij defaultní hodnoty
+        params["category_main"] = 1
+        params["category_type"] = 1
+        params["locality"] = None
+
+    print("\n" + "="*60)
+    print("PARAMETRY PRO VŠECHNY PLATFORMY:")
+    print("="*60)
+
+    print("\nMaximální počet stránek:")
+    print("  Zadej číslo (např. 10) nebo 0 pro všechny dostupné stránky")
+    print("  ⚠️  Pozor: 0 může trvat velmi dlouho (hodiny)!")
+    max_pages = input("Max. stránek [10]: ").strip() or "10"
+    params["max_pages"] = None if max_pages == "0" else int(max_pages)
+
+    print("\nVýstupní Excel soubor:")
+    print("  Zadej název souboru (např. 'makleri.xlsx')")
+    print("  Nebo nech prázdné pro výchozí název")
+    output_file = input("Soubor [výsledky.xlsx]: ").strip() or "výsledky.xlsx"
+    if not output_file.endswith(".xlsx"):
+        output_file += ".xlsx"
+    params["output"] = output_file
+
+    return params
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv or sys.argv[1:])
 
@@ -168,6 +224,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         # Default behaviour: ask a simple question (backwards compatible).
         platforms = _validate_platforms(_prompt_for_platform())
+
+    # Interaktivní dotazování na parametry (pokud nejsou zadány z CLI)
+    if not any([args.max_pages, args.category_main != 1, args.category_type != 1, args.locality, args.output]):
+        # Žádné parametry nebyly zadány z CLI, zeptej se interaktivně
+        interactive_params = _prompt_for_scraping_params(platforms)
+        # Přepiš args s interaktivními parametry
+        args.max_pages = interactive_params.get("max_pages", args.max_pages)
+        args.category_main = interactive_params.get("category_main", args.category_main)
+        args.category_type = interactive_params.get("category_type", args.category_type)
+        args.locality = interactive_params.get("locality", args.locality)
+        if not args.output and interactive_params.get("output"):
+            args.output = Path(interactive_params["output"])
 
     print("Spouštím scraping pro:")
     for slug in platforms:
@@ -188,6 +256,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Rate-limit: {scraper.rate_limit_info}")
         if args.full_scan and not scraper.supports_full_scan:
             print("⚠️  Platforma nepodporuje plný průchod, použiji dostupný režim.")
+
+        # Informace o délce trvání
+        max_p = args.max_pages or (None if args.full_scan else 10)
+        if max_p:
+            print(f"📄 Stahuji max. {max_p} stránek...")
+        else:
+            print(f"📄 Stahuji všechny dostupné stránky (může trvat dlouho)...")
+        print(f"⏳ Probíhá stahování (kvůli rate-limitingu může trvat několik minut)...\n")
+        sys.stdout.flush()
+
         result = scraper.scrape(
             max_pages=args.max_pages,
             full_scan=args.full_scan,
