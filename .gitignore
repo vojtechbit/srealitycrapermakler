@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+*.xlsx
+*.xls
+výstupy/
+data/
