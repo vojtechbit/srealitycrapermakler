@@ -334,6 +334,10 @@ class SrealityScraper(BaseScraper):
             "detail_url",
             "detailUrl",
             "permalink",
+            "public_url",
+            "publicUrl",
+            "canonicalUrl",
+            "canonical_url",
         )
         for key in priority_keys:
             candidate = data.get(key)
@@ -341,11 +345,25 @@ class SrealityScraper(BaseScraper):
             if url:
                 return url
 
-        for key in ("seo", "_links", "links"):
+        nested_keys = (
+            "seo",
+            "_links",
+            "links",
+            "share",
+            "share_links",
+            "shareLinks",
+            "social_sharing",
+            "socialSharing",
+        )
+        for key in nested_keys:
             candidate = data.get(key)
             url = find_url(candidate)
             if url:
                 return url
+
+        fallback_url = find_url(data)
+        if fallback_url:
+            return fallback_url
 
         seo = data.get("seo") if isinstance(data.get("seo"), dict) else None
         seo_id = None
@@ -357,11 +375,19 @@ class SrealityScraper(BaseScraper):
         if not seo_id:
             return None
 
-        if not isinstance(seo, dict):
-            return None
-
-        category_url = seo.get("categoryUrl") or seo.get("category_url")
-        locality_url = seo.get("localityUrl") or seo.get("locality_url")
+        seo_dict = seo or {}
+        category_url = (
+            seo_dict.get("categoryUrl")
+            or seo_dict.get("category_url")
+            or data.get("categoryUrl")
+            or data.get("category_url")
+        )
+        locality_url = (
+            seo_dict.get("localityUrl")
+            or seo_dict.get("locality_url")
+            or data.get("localityUrl")
+            or data.get("locality_url")
+        )
 
         if not isinstance(category_url, str) or not category_url.strip():
             return None

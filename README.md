@@ -77,6 +77,14 @@ V Terminálu (stále ve složce projektu) zadej:
 pip3 install -r requirements.txt
 ```
 
+Pokud Terminál vypíše, že `pip3` (nebo `pip`) není nalezen, zadej příkaz přímo přes Python:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+Tato varianta obejde špatně nastavenou instalaci Pythonu a vždy najde správný `pip`.
+
 Počkej, až se nainstalují tři knihovny: `requests`, `pandas`, `openpyxl`.
 
 **Uvidíš nějaké warningy? To je normální! ✅**
@@ -195,6 +203,14 @@ V Command Prompt (stále ve složce projektu) zadej:
 ```cmd
 pip install -r requirements.txt
 ```
+
+Pokud `pip` hlásí chybu nebo příkaz neexistuje, použij vždy funkční variantu:
+
+```cmd
+py -m pip install -r requirements.txt
+```
+
+Tímto příkazem se použije přesně ta verze `pip`, která je součástí nainstalovaného Pythonu, takže funguje i když se Python nepřidal do PATH.
 
 Počkej, až se nainstalují tři knihovny: `requests`, `pandas`, `openpyxl`.
 
