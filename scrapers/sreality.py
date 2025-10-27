@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import random
+import re
 import time
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Optional
@@ -61,6 +63,22 @@ def _normalise_url(value: Optional[str]) -> Optional[str]:
         return None
 
     return candidate
+
+
+def _slugify_locality(value: Optional[str]) -> Optional[str]:
+    if not value or not isinstance(value, str):
+        return None
+
+    normalized = unicodedata.normalize("NFKD", value)
+    ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
+    ascii_value = ascii_value.lower()
+    ascii_value = re.sub(r"[^a-z0-9]+", "-", ascii_value)
+    ascii_value = ascii_value.strip("-")
+    if not ascii_value:
+        return None
+    parts = [part for part in ascii_value.split("-") if part and not part.isdigit()]
+    slug = "-".join(parts)
+    return slug or None
 
 
 @register
@@ -292,28 +310,81 @@ class SrealityScraper(BaseScraper):
         return None
 
     def _extract_url(self, data: Dict) -> Optional[str]:
-        for key in ("_links", "links", "seo", "url", "detail_url", "detailUrl", "canonical"):
-            value = data.get(key)
+        if not isinstance(data, dict):
+            return None
+
+        def find_url(value: object) -> Optional[str]:
             if isinstance(value, str):
-                url = _normalise_url(value)
-                if url:
-                    return url
-            elif isinstance(value, dict):
+                return _normalise_url(value)
+            if isinstance(value, dict):
                 for nested in value.values():
-                    if isinstance(nested, str):
-                        url = _normalise_url(nested)
-                        if url:
-                            return url
-                    elif isinstance(nested, dict):
-                        for maybe in nested.values():
-                            if isinstance(maybe, str):
-                                url = _normalise_url(maybe)
-                                if url:
-                                    return url
-        hash_id = data.get("hash_id") or data.get("hashId")
-        if hash_id:
-            return f"{self._config.base_url}/detail/prodej/{hash_id}"
-        return None
+                    url = find_url(nested)
+                    if url:
+                        return url
+            if isinstance(value, list):
+                for item in value:
+                    url = find_url(item)
+                    if url:
+                        return url
+            return None
+
+        priority_keys = (
+            "canonical",
+            "url",
+            "detail_url",
+            "detailUrl",
+            "permalink",
+        )
+        for key in priority_keys:
+            candidate = data.get(key)
+            url = find_url(candidate)
+            if url:
+                return url
+
+        for key in ("seo", "_links", "links"):
+            candidate = data.get(key)
+            url = find_url(candidate)
+            if url:
+                return url
+
+        seo = data.get("seo") if isinstance(data.get("seo"), dict) else None
+        seo_id = None
+        if isinstance(seo, dict):
+            seo_id = seo.get("seoId") or seo.get("seo_id")
+        if not seo_id:
+            seo_id = data.get("seoId") or data.get("seo_id") or data.get("hash_id") or data.get("hashId")
+
+        if not seo_id:
+            return None
+
+        if not isinstance(seo, dict):
+            return None
+
+        category_url = seo.get("categoryUrl") or seo.get("category_url")
+        locality_url = seo.get("localityUrl") or seo.get("locality_url")
+
+        if not isinstance(category_url, str) or not category_url.strip():
+            return None
+
+        segments = ["detail"]
+        segments.extend(part for part in category_url.strip("/").split("/") if part)
+
+        if isinstance(locality_url, str) and locality_url.strip():
+            segments.extend(part for part in locality_url.strip("/").split("/") if part)
+        else:
+            locality_text = seo.get("locality") or data.get("locality")
+            locality_slug = _slugify_locality(locality_text)
+            if locality_slug:
+                segments.append(locality_slug)
+
+        segments.append(str(seo_id))
+        cleaned_segments = [segment for segment in segments if isinstance(segment, str) and segment]
+        if len(cleaned_segments) < 2:
+            return None
+
+        path = "/".join(cleaned_segments)
+        url = urljoin(self._config.base_url + "/", path)
+        return _normalise_url(url)
 
     @staticmethod
     def _extract_region(locality: str) -> Optional[str]:
