@@ -69,6 +69,39 @@ pip3 install -r requirements.txt
 
 Počkej, až se nainstalují tři knihovny: `requests`, `pandas`, `openpyxl`.
 
+**Uvidíš nějaké warningy? To je normální! ✅**
+
+Pokud uvidíš něco jako:
+```
+WARNING: The scripts ... are installed in '...' which is not on PATH.
+WARNING: You are using pip version 21.2.4; however, version 25.3 is available.
+```
+
+**Nemusíš nic řešit!** Tyto warningy nejsou kritické. Důležité je, že na konci vidíš:
+```
+Successfully installed certifi-... requests-... pandas-... openpyxl-...
+```
+
+Pokud vidíš `Successfully installed`, vše je OK a můžeš pokračovat.
+
+### Krok 4.5: Ověř instalaci (volitelné, ale doporučené)
+
+Pro jistotu ověř, že je vše správně nainstalované:
+
+```bash
+python3 test_instalace.py
+```
+
+Měl bys vidět:
+```
+✅ requests 2.32.5
+✅ pandas 2.3.3
+✅ openpyxl 3.1.5
+✨ Všechny knihovny jsou nainstalované!
+```
+
+Pokud vidíš všechny ✅, vše funguje a můžeš pokračovat. Pokud vidíš ❌, opakuj Krok 4.
+
 ### Krok 5: Spusť scraper
 
 ```bash
@@ -237,6 +270,42 @@ pip3 install requests pandas openpyxl
 
 ---
 
+### Warningy při `pip3 install` - je to OK?
+
+**ANO! Tyto warningy jsou normální a NENÍ třeba nic řešit:**
+
+**1. `WARNING: The scripts ... are installed in '...' which is not on PATH.`**
+- **Co to znamená:** Některé pomocné skripty (numpy-config, f2py) nejsou v PATH
+- **Je to problém?** NE! Scraper tyto skripty nepotřebuje
+- **Můžeš ignorovat** a pokračovat normálně
+
+**2. `WARNING: You are using pip version 21.2.4; however, version 25.3 is available.`**
+- **Co to znamená:** Máš starší verzi pipu
+- **Je to problém?** NE! Starší pip stále funguje perfektně
+- **Chceš upgradovat?** (volitelné):
+  ```bash
+  python3 -m pip install --upgrade pip
+  ```
+
+**3. `Defaulting to user installation because normal site-packages is not writeable`**
+- **Co to znamená:** Instaluje se do tvé uživatelské složky místo systémové
+- **Je to problém?** NE! To je normální na Macu
+- **Můžeš ignorovat**
+
+**✅ Důležité je vidět na konci:**
+```
+Successfully installed certifi-... requests-... pandas-... openpyxl-...
+```
+
+Pokud vidíš `Successfully installed`, **všechno je OK!** Můžeš spustit scraper.
+
+**Pro ověření spusť:**
+```bash
+python3 test_instalace.py
+```
+
+---
+
 ### Chyba: `❌ HTTP 403`
 
 **Co to znamená:**
@@ -375,6 +444,7 @@ Obsahuje:
 srealitycrapermakler/
 ├── sreality_scraper.py    # Hlavní scraper
 ├── examples.py            # Hotové příklady
+├── test_instalace.py      # Test instalace knihoven
 ├── requirements.txt       # Závislosti
 ├── data/                  # Výstupní Excel soubory (vytvoří se automaticky)
 ├── README.md              # Tento soubor
