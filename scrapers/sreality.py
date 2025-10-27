@@ -358,56 +358,88 @@ class SrealityScraper(BaseScraper):
             if url:
                 return url
 
-        fallback_url = find_url(data)
-        if fallback_url:
-            return fallback_url
+        # Extrahuj ID inzerátu
+        seo = data.get("seo") if isinstance(data.get("seo"), dict) else {}
+        hash_id = data.get("hash_id") or data.get("hashId") or seo.get("seoId") or seo.get("seo_id")
 
-        seo = data.get("seo") if isinstance(data.get("seo"), dict) else None
-        seo_id = None
-        if isinstance(seo, dict):
-            seo_id = seo.get("seoId") or seo.get("seo_id")
-        if not seo_id:
-            seo_id = data.get("seoId") or data.get("seo_id") or data.get("hash_id") or data.get("hashId")
-
-        if not seo_id:
+        if not hash_id:
             return None
 
-        seo_dict = seo or {}
-        category_url = (
-            seo_dict.get("categoryUrl")
-            or seo_dict.get("category_url")
-            or data.get("categoryUrl")
-            or data.get("category_url")
-        )
-        locality_url = (
-            seo_dict.get("localityUrl")
-            or seo_dict.get("locality_url")
-            or data.get("localityUrl")
-            or data.get("locality_url")
-        )
+        # Pokus se sestavit URL z SEO parametrů (category_type_cb, category_main_cb, category_sub_cb)
+        category_type_cb = seo.get("category_type_cb") if isinstance(seo, dict) else None
+        category_main_cb = seo.get("category_main_cb") if isinstance(seo, dict) else None
+        category_sub_cb = seo.get("category_sub_cb") if isinstance(seo, dict) else None
 
-        if not isinstance(category_url, str) or not category_url.strip():
-            return None
+        # Mapování kódů na text
+        type_map = {1: "prodej", 2: "pronajem", 3: "drazby"}
+        main_map = {1: "byt", 2: "dum", 3: "pozemek", 4: "komercni", 5: "ostatni"}
 
-        segments = ["detail"]
-        segments.extend(part for part in category_url.strip("/").split("/") if part)
+        # Podkategorie - pro byty jsou to dispozice, pro domy typy
+        # Pokud máme category_sub_cb, pokusíme se najít text v názvu inzerátu
+        sub_text = None
+        name = data.get("name", "") or ""
 
-        if isinstance(locality_url, str) and locality_url.strip():
-            segments.extend(part for part in locality_url.strip("/").split("/") if part)
-        else:
-            locality_text = seo.get("locality") or data.get("locality")
-            locality_slug = _slugify_locality(locality_text)
-            if locality_slug:
-                segments.append(locality_slug)
+        # Pro byty hledej dispozici (např. "2+kk", "3+1")
+        if category_main_cb == 1:
+            import re
+            match = re.search(r'\d\+(?:kk|\d)', name, re.IGNORECASE)
+            if match:
+                sub_text = match.group(0).lower()
 
-        segments.append(str(seo_id))
-        cleaned_segments = [segment for segment in segments if isinstance(segment, str) and segment]
-        if len(cleaned_segments) < 2:
-            return None
+        # Lokaliita
+        locality = seo.get("locality") if isinstance(seo, dict) else None
+        if not locality:
+            locality = _slugify_locality(data.get("locality", ""))
 
-        path = "/".join(cleaned_segments)
-        url = urljoin(self._config.base_url + "/", path)
-        return _normalise_url(url)
+        # Pokud máme categoryUrl a localityUrl, použij je (starý způsob)
+        category_url = seo.get("categoryUrl") or seo.get("category_url") if isinstance(seo, dict) else None
+        locality_url = seo.get("localityUrl") or seo.get("locality_url") if isinstance(seo, dict) else None
+
+        # Pokud existuje categoryUrl, použij starý způsob
+        if isinstance(category_url, str) and category_url.strip():
+            segments = ["detail"]
+            segments.extend(part for part in category_url.strip("/").split("/") if part)
+
+            if isinstance(locality_url, str) and locality_url.strip():
+                segments.extend(part for part in locality_url.strip("/").split("/") if part)
+            elif locality:
+                segments.append(locality)
+
+            segments.append(str(hash_id))
+            cleaned_segments = [segment for segment in segments if isinstance(segment, str) and segment]
+            if len(cleaned_segments) >= 2:
+                path = "/".join(cleaned_segments)
+                url = urljoin(self._config.base_url + "/", path)
+                return _normalise_url(url)
+
+        # Nový způsob - sestavení z category_type_cb, category_main_cb atd.
+        if category_type_cb and category_main_cb:
+            segments = ["detail"]
+
+            type_text = type_map.get(category_type_cb)
+            if type_text:
+                segments.append(type_text)
+
+            main_text = main_map.get(category_main_cb)
+            if main_text:
+                segments.append(main_text)
+
+            if sub_text:
+                segments.append(sub_text)
+
+            if locality:
+                segments.append(locality)
+
+            segments.append(str(hash_id))
+
+            cleaned_segments = [segment for segment in segments if isinstance(segment, str) and segment]
+            if len(cleaned_segments) >= 4:  # Minimálně: detail, typ, kategorie, ID
+                path = "/".join(cleaned_segments)
+                url = urljoin(self._config.base_url + "/", path)
+                return _normalise_url(url)
+
+        # Fallback - jen ID
+        return urljoin(self._config.base_url + "/", f"detail/{hash_id}")
 
     @staticmethod
     def _extract_region(locality: str) -> Optional[str]:
