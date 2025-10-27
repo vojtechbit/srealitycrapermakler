@@ -10,6 +10,9 @@ from pathlib import Path
 from collections import defaultdict
 from urllib.parse import urljoin, urlparse
 
+from scrapers import get_scraper, list_scrapers
+from scrapers.base import BaseScraper, ScraperResult
+
 class Config:
     BASE_URL = "https://www.sreality.cz"
     API_URL = f"{BASE_URL}/api/cs/v2/estates"
@@ -683,13 +686,168 @@ class AgentScraper:
 
         return str(filepath)
 
-def main():
-    print("""
-╔═══════════════════════════════════════════════════════════╗
-║           SREALITY - SCRAPER MAKLÉŘŮ                      ║
-╚═══════════════════════════════════════════════════════════╝
-    """)
+def _stringify_value(value: Any) -> Any:
+    if isinstance(value, set):
+        return ", ".join(sorted(str(v) for v in value if v))
+    if isinstance(value, list):
+        return "\n".join(str(v) for v in value if v)
+    if isinstance(value, tuple):
+        return ", ".join(str(v) for v in value if v)
+    return value
 
+
+def _save_result_to_excel(result: ScraperResult, slug: str) -> Optional[str]:
+    if not result.records:
+        return None
+
+    output_dir = Config.OUTPUT_DIR
+    output_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = output_dir / f"{slug}_agents_{timestamp}.xlsx"
+
+    records = BaseScraper.normalise_records(result.records)
+    df = pd.DataFrame(records)
+
+    column_map = {
+        'zdroj': 'Zdroj',
+        'jmeno_maklere': 'Jméno makléře',
+        'telefon': 'Telefon',
+        'email': 'Email',
+        'realitni_kancelar': 'Realitní kancelář',
+        'kraj': 'Kraj',
+        'mesto': 'Město',
+        'specializace': 'Specializace',
+        'detailni_informace': 'Detailní informace',
+        'odkazy': 'Odkazy',
+    }
+    df = df.rename(columns=column_map)
+
+    ordered_columns = [
+        'Zdroj',
+        'Jméno makléře',
+        'Telefon',
+        'Email',
+        'Realitní kancelář',
+        'Kraj',
+        'Město',
+        'Specializace',
+        'Detailní informace',
+        'Odkazy',
+    ]
+    df = df[[column for column in ordered_columns if column in df.columns]]
+
+    for column in df.columns:
+        df[column] = df[column].apply(_stringify_value)
+
+    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Makléři')
+        worksheet = writer.sheets['Makléři']
+
+        for idx, col in enumerate(df.columns):
+            max_length = max(
+                df[col].astype(str).apply(lambda x: len(str(x).split('\n')[0])).max(),
+                len(col)
+            ) + 2
+
+            if col == 'Odkazy':
+                max_length = min(max_length, 80)
+            elif col == 'Detailní informace':
+                max_length = min(max_length, 60)
+            elif col == 'Email':
+                max_length = min(max_length, 35)
+            else:
+                max_length = min(max_length, 30)
+
+            worksheet.column_dimensions[chr(65 + idx)].width = max_length
+
+        from openpyxl.styles import Alignment
+        for row in worksheet.iter_rows(min_row=2):
+            for cell in row:
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
+
+    return str(filename)
+
+
+def _prompt_platform_choice() -> str:
+    scrapers = sorted(list_scrapers(), key=lambda scraper: scraper.slug)
+    if not scrapers:
+        return "sreality"
+
+    default_slug = "sreality"
+    slug_to_index = {scraper.slug: idx for idx, scraper in enumerate(scrapers, start=1)}
+    default_index = slug_to_index.get(default_slug, 1)
+
+    print("Dostupné platformy:")
+    for idx, scraper in enumerate(scrapers, start=1):
+        marker = "*" if scraper.slug == default_slug else " "
+        print(f"  {idx:>2}. [{marker}] {scraper.name} ({scraper.slug})")
+
+    while True:
+        choice = input(f"Vyber platformu [{default_index}]: ").strip()
+        if not choice:
+            return default_slug
+        if choice.isdigit():
+            index = int(choice)
+            if 1 <= index <= len(scrapers):
+                return scrapers[index - 1].slug
+        choice_slug = choice.lower()
+        if choice_slug in slug_to_index:
+            return choice_slug
+        print("Neplatná volba, zkus to prosím znovu.")
+
+
+def _run_other_platform(slug: str) -> None:
+    scraper = get_scraper(slug)
+
+    print("\n" + "=" * 60)
+    print(f"Platforma: {scraper.name} ({slug})")
+    print(f"Popis: {scraper.description}")
+    print(f"Rate-limit: {scraper.rate_limit_info}")
+    print("=" * 60 + "\n")
+
+    while True:
+        max_pages_input = input("Max. stránek [10] (0 = všechny dostupné): ").strip() or "10"
+        try:
+            max_pages = None if max_pages_input == "0" else int(max_pages_input)
+            if max_pages is not None and max_pages < 1:
+                print("Zadej prosím číslo větší než 0 nebo 0 pro neomezeně.")
+                continue
+            break
+        except ValueError:
+            print("Neplatný vstup, zkus to prosím znovu.")
+
+    full_scan = False
+    if scraper.supports_full_scan:
+        full_scan = input("Projít všechny stránky? [y/N]: ").strip().lower() in ("y", "yes", "a", "ano")
+        if full_scan:
+            max_pages = None
+
+    result = scraper.scrape(max_pages=max_pages, full_scan=full_scan)
+
+    if result.records:
+        print(f"✓ Nalezeno {len(result.records)} záznamů")
+    else:
+        print("⚠️  Žádné záznamy nebyly nalezeny.")
+
+    if result.warnings:
+        print("\n⚠️  Varování:")
+        for warning in result.warnings:
+            print(f"  - {warning}")
+
+    if result.errors:
+        print("\n❌ Chyby:")
+        for error in result.errors:
+            print(f"  - {error}")
+
+    if result.records:
+        save = input("\nUložit výsledky do Excelu? [Y/n]: ").strip().lower()
+        if save in ("", "y", "yes", "a", "ano"):
+            filepath = _save_result_to_excel(result, slug)
+            if filepath:
+                print(f"\n💾 Uloženo: {filepath}")
+
+
+def _run_sreality() -> None:
     scraper = AgentScraper(verbose=True)
 
     print("Typ nemovitosti:")
@@ -735,6 +893,22 @@ def main():
         print(f"\n📂 Excel soubor: {filepath}")
 
     print("\n✨ Hotovo! Můžeš zavřít Terminal.\n")
+
+
+def main():
+    print("""
+╔═══════════════════════════════════════════════════════════╗
+║           SREALITY - SCRAPER MAKLÉŘŮ                      ║
+╚═══════════════════════════════════════════════════════════╝
+    """)
+
+    platform = _prompt_platform_choice()
+
+    if platform != "sreality":
+        _run_other_platform(platform)
+        return
+
+    _run_sreality()
 
 if __name__ == "__main__":
     main()
