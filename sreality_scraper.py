@@ -8,6 +8,7 @@ from typing import List, Dict, Optional, Callable, Any
 import json
 from pathlib import Path
 from collections import defaultdict
+from urllib.parse import urljoin
 
 class Config:
     BASE_URL = "https://www.sreality.cz"
@@ -189,16 +190,23 @@ class AgentScraper:
 
             if seller:
                 agent_name = seller.get('user_name') or seller.get('name')
-                company_name = seller.get('company_name')
+                company_name = (
+                    seller.get('company_name')
+                    or seller.get('company', {}).get('name')
+                    or seller.get('organization', {}).get('name')
+                )
 
             if company and not company_name:
-                company_name = company.get('name')
+                company_name = company.get('name') or company.get('company_name')
 
             if broker and not agent_name:
                 agent_name = broker.get('user_name') or broker.get('name')
 
-            if not company_name and seller:
-                company_name = seller.get('name')
+            if not company_name:
+                company_name = (
+                    self._find_company_name(detail)
+                    or self._find_company_name(estate)
+                )
 
             agent_phone = agent_phone or self._find_first_phone(detail)
             if not agent_phone:
@@ -270,7 +278,34 @@ class AgentScraper:
         if href.startswith('http'):
             return href
 
-        return f"{self.config.BASE_URL}{href}"
+        base = self.config.BASE_URL.rstrip('/') + '/'
+        path = href.lstrip('/')
+        return urljoin(base, path)
+
+    def _find_company_name(self, data: Any) -> Optional[str]:
+        return self._find_first_match(
+            data,
+            search_keys=("company", "organization", "organisation", "agency"),
+            extractor=self._extract_company_value
+        )
+
+    def _extract_company_value(self, value: Any) -> Optional[str]:
+        if isinstance(value, dict):
+            for key in ("name", "company_name", "title"):
+                if key in value:
+                    extracted = self._extract_company_value(value[key])
+                    if extracted:
+                        return extracted
+        elif isinstance(value, list):
+            for item in value:
+                extracted = self._extract_company_value(item)
+                if extracted:
+                    return extracted
+        elif isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned:
+                return cleaned
+        return None
 
     def _find_first_phone(self, data: Any) -> Optional[str]:
         return self._find_first_match(
