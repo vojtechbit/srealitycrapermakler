@@ -31,4 +31,7 @@ def list_scrapers() -> List[BaseScraper]:
 
 
 # Import side effects registering concrete scrapers.
-from . import sreality, bezrealitky, reality_idnes, reality_cz, realtia, ulovdomov, linkedin, registr_osvc  # noqa: E402,F401
+from . import sreality  # noqa: E402,F401
+
+# Ostatní scrapery jsou dočasně skryté - pro budoucí použití odkomentuj níže:
+# from . import bezrealitky, reality_idnes, reality_cz, realtia, ulovdomov, linkedin, registr_osvc  # noqa: E402,F401

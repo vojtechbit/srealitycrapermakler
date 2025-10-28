@@ -979,12 +979,17 @@ def main():
 ╚═══════════════════════════════════════════════════════════╝
     """)
 
-    platform = _prompt_platform_choice()
+    # Zkontroluj, jestli jsou dostupné více platforem
+    scrapers = list_scrapers()
 
-    if platform != "sreality":
-        _run_other_platform(platform)
-        return
+    if len(scrapers) > 1:
+        # Více platforem - nabídni výběr
+        platform = _prompt_platform_choice()
+        if platform != "sreality":
+            _run_other_platform(platform)
+            return
 
+    # Pouze Sreality nebo bylo vybráno Sreality
     _run_sreality()
 
 if __name__ == "__main__":
