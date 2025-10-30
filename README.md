@@ -314,9 +314,37 @@ Upozornění: většina platforem zatím vrací pouze varování, protože vyža
 
 ### Sloučení více exportů do jedné tabulky
 
-Pro deduplikaci kontaktů z více Excelů použij skript `merge_contacts.py`:
+#### Metoda 1: Sloučení z více běhů se stejnou strukturou
 
+Pokud máš více XLSX souborů z různých běhů scraperu (např. různé kategorie nebo kraje) a chceš je sloučit s deduplikací inzerátů, použij `merge_xlsx.py`:
+
+**Postup:**
+1. Vytvoř složku `data_merge/` (nebo použij existující)
+2. Nahraj do ní všechny XLSX soubory, které chceš sloučit
+3. Spusť:
+```bash
+# Mac:
+python3 merge_xlsx.py
+
+# Windows:
+python merge_xlsx.py
 ```
+
+**Co dělá:**
+- Najde všechny XLSX soubory ve složce `data_merge/`
+- Sloučí makléře podle unikátního klíče (jméno + telefon + realitní kancelář)
+- **Deduplikuje inzeráty podle URL** - protože jeden inzerát může být ve více skupinách/kategoriích
+- Spočítá správný počet unikátních inzerátů pro každého makléře
+- Vytvoří nový soubor `data/merged_agents_TIMESTAMP.xlsx`
+
+**Proč je deduplikace důležitá?**
+Některé inzeráty jsou uvedené ve více kategoriích současně (např. byt může být v kategorii "Byty" i "Investiční"). Pokud bys jen sečetl počty inzerátů z různých běhů, dostal bys chybný výsledek. Tento script zajistí, že se každý inzerát počítá jen jednou podle jeho URL.
+
+#### Metoda 2: Sloučení z různých platforem
+
+Pro deduplikaci kontaktů z různých platforem (Sreality, Bezrealitky, atd.) použij skript `merge_contacts.py`:
+
+```bash
 python3 merge_contacts.py data/makleri_sreality.xlsx data/dalsi_zdroj.xlsx -o data/slouceno.xlsx
 ```
 
@@ -631,7 +659,8 @@ Obsahuje:
 ```
 srealitycrapermakler/
 ├── scrape_agents.py       # Nová CLI utilita pro všechny platformy
-├── merge_contacts.py      # Sloučení více Excelů s deduplikací
+├── merge_contacts.py      # Sloučení více Excelů z různých platforem
+├── merge_xlsx.py          # Sloučení více běhů se stejnou strukturou + deduplikace
 ├── scrapers/              # Moduly pro jednotlivé platformy
 │   ├── base.py            # Společné abstrakce
 │   ├── sreality.py        # Implementace Sreality.cz
@@ -642,6 +671,7 @@ srealitycrapermakler/
 ├── test_instalace.py      # Test instalace knihoven
 ├── requirements.txt       # Závislosti
 ├── data/                  # Výstupní Excel soubory (vytvoří se automaticky)
+├── data_merge/            # Složka pro XLSX soubory k sloučení (vytvoř ručně)
 ├── README.md              # Tento soubor
 └── LICENSE                # Licence
 ```
