@@ -340,7 +340,38 @@ python merge_xlsx.py
 **Proč je deduplikace důležitá?**
 Některé inzeráty jsou uvedené ve více kategoriích současně (např. byt může být v kategorii "Byty" i "Investiční"). Pokud bys jen sečetl počty inzerátů z různých běhů, dostal bys chybný výsledek. Tento script zajistí, že se každý inzerát počítá jen jednou podle jeho URL.
 
-#### Metoda 2: Sloučení z různých platforem
+**DŮLEŽITÁ POZNÁMKA:** Od verze z ledna 2025 je deduplikace inzerátů implementována přímo v `sreality_scraper.py`. Scraper nyní automaticky používá množiny (sets) místo seznamů, takže duplicitní inzeráty se již neukládají. To znamená, že počty inzerátů ve výstupních souborech jsou přesné a odpovídají skutečnosti.
+
+#### Metoda 2: Čištění neaktivních inzerátů
+
+Pokud máš starší XLSX soubor a chceš odstranit makléře, jejichž inzeráty již nejsou aktivní, použij `clean_xlsx.py`:
+
+**Postup:**
+1. Vytvoř složku `data_clean/` (nebo použij existující)
+2. Nahraj do ní XLSX soubor, který chceš vyčistit
+3. Spusť:
+```bash
+# Mac:
+python3 clean_xlsx.py
+
+# Windows:
+python clean_xlsx.py
+```
+
+**Co dělá:**
+- Najde všechny XLSX soubory ve složce `data_clean/`
+- Pro každý odkaz na inzerát zkontroluje, zda stránka stále existuje (HTTP request)
+- Odfiltruje inzeráty, které již nejsou dostupné (HTTP 404, 410)
+- Vytvoří nový soubor `data/clean_ORIGINAL_TIMESTAMP.xlsx` pouze s aktivními inzeráty
+- Zobrazí statistiky (kolik odkazů bylo zkontrolováno, kolik je aktivních)
+
+**Upozornění:**
+- Kontrola URL může trvat dlouho (~1-2 sekundy na URL)
+- Pro 100 inzerátů to může být 2-3 minuty
+- Mezi požadavky je automatické zpoždění, aby se předešlo blokování
+- Můžeš vypnout kontrolu URL (jen přepočítá statistiky) zadáním `n` při dotazu
+
+#### Metoda 3: Sloučení z různých platforem
 
 Pro deduplikaci kontaktů z různých platforem (Sreality, Bezrealitky, atd.) použij skript `merge_contacts.py`:
 
@@ -661,6 +692,7 @@ srealitycrapermakler/
 ├── scrape_agents.py       # Nová CLI utilita pro všechny platformy
 ├── merge_contacts.py      # Sloučení více Excelů z různých platforem
 ├── merge_xlsx.py          # Sloučení více běhů se stejnou strukturou + deduplikace
+├── clean_xlsx.py          # Čištění neaktivních inzerátů ze starších souborů
 ├── scrapers/              # Moduly pro jednotlivé platformy
 │   ├── base.py            # Společné abstrakce
 │   ├── sreality.py        # Implementace Sreality.cz
@@ -672,6 +704,7 @@ srealitycrapermakler/
 ├── requirements.txt       # Závislosti
 ├── data/                  # Výstupní Excel soubory (vytvoří se automaticky)
 ├── data_merge/            # Složka pro XLSX soubory k sloučení (vytvoř ručně)
+├── data_clean/            # Složka pro XLSX soubory k vyčištění (vytvoř ručně)
 ├── README.md              # Tento soubor
 └── LICENSE                # Licence
 ```

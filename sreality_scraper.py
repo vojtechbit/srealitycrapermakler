@@ -241,16 +241,22 @@ class AgentScraper:
                     'kraj': region,
                     'mesto': city,
                     'pocet_inzeratu': 0,
-                    'inzeraty': [],
-                    'inzeraty_odkazy': [],
+                    'inzeraty': set(),  # Změněno na set pro automatickou deduplikaci
+                    'inzeraty_odkazy': set(),  # Změněno na set pro automatickou deduplikaci
                     'typy_nemovitosti': set(),
                 }
 
             agent = self.agents[agent_key]
-            agent['pocet_inzeratu'] += 1
-            agent['inzeraty'].append(estate_name)
-            if estate_url:
-                agent['inzeraty_odkazy'].append(estate_url)
+            # Přidej inzerát jen pokud ještě není v množině (set zajistí deduplikaci)
+            if estate_url and estate_url not in agent['inzeraty_odkazy']:
+                agent['pocet_inzeratu'] += 1
+                agent['inzeraty'].add(estate_name)
+                agent['inzeraty_odkazy'].add(estate_url)
+            elif not estate_url:
+                # Pokud není URL, kontroluj podle názvu
+                if estate_name not in agent['inzeraty']:
+                    agent['pocet_inzeratu'] += 1
+                    agent['inzeraty'].add(estate_name)
 
             estate_type = self._get_estate_type(estate)
             if estate_type:
@@ -658,6 +664,10 @@ class AgentScraper:
 
         results = []
         for agent in self.agents.values():
+            # Převeď sety na seznamy pro uložení
+            odkazy_list = sorted(agent['inzeraty_odkazy']) if agent['inzeraty_odkazy'] else []
+            inzeraty_list = sorted(agent['inzeraty']) if agent['inzeraty'] else []
+
             results.append({
                 'Jméno makléře': agent['jmeno_maklere'],
                 'Telefon': agent['telefon'],
@@ -667,8 +677,8 @@ class AgentScraper:
                 'Město': agent['mesto'],
                 'Počet inzerátů': agent['pocet_inzeratu'],
                 'Typy nemovitostí': ', '.join(sorted(agent['typy_nemovitosti'])) if agent['typy_nemovitosti'] else 'N/A',
-                'Odkazy': '\n'.join(agent['inzeraty_odkazy'][:5]),
-                'Inzeráty': '\n'.join(agent['inzeraty'][:5]) + ('\n...' if len(agent['inzeraty']) > 5 else ''),
+                'Odkazy': '\n'.join(odkazy_list[:5]) + ('\n...' if len(odkazy_list) > 5 else ''),
+                'Inzeráty': '\n'.join(inzeraty_list[:5]) + ('\n...' if len(inzeraty_list) > 5 else ''),
             })
 
         df = pd.DataFrame(results)
