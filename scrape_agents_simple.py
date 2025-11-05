@@ -393,11 +393,11 @@ def merge_agents(all_records):
     merged = {}
 
     for record in all_records:
-        # Klíč podle jména + telefon/email
+        # Klíč podle jména + telefon/email (ošetření None hodnot)
         key = (
-            record.get("jmeno_maklere", "").strip().lower(),
-            record.get("telefon", "").strip(),
-            record.get("email", "").strip(),
+            (record.get("jmeno_maklere") or "").strip().lower(),
+            (record.get("telefon") or "").strip(),
+            (record.get("email") or "").strip(),
         )
 
         # Pokud je klíč prázdný, zkus user_id z URL
