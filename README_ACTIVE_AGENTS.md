@@ -20,21 +20,40 @@ Získává **pouze aktivní makléře** (s aktuálními inzeráty) a pro každé
 
 ## 🚀 RYCHLÝ START
 
-### Základní použití (nejčastější):
+### ⭐ INTERAKTIVNÍ MÓD (doporučeno):
 
 ```bash
 # macOS:
-python3 scrape_active_agents.py
+python3 scrape_active_agents.py --prompt
 
 # Windows:
-python scrape_active_agents.py
+python scrape_active_agents.py --prompt
 ```
 
-**Co se stane:**
-- Projde **5 stránek** inzerátů s **byty na prodej** v celé ČR
-- Najde všechny aktivní makléře
-- Pro každého získá kompletní profil
-- Uloží do `data/active_agents_TIMESTAMP.xlsx`
+**Program se tě zeptá:**
+1. Typ nemovitosti (můžeš vybrat víc: `1,2` = Byty a Domy)
+2. Typ inzerátu (můžeš vybrat víc: `1,2` = Prodej a Pronájem)
+3. Kraje (můžeš vybrat víc: `10,20` = Praha a Brno)
+4. Maximální počet stránek (`5` = výchozí, `0` = všechny)
+5. Stahovat detaily? (`y` = ano, `n` = ne)
+
+**Výhody:**
+- ✅ Nemusíš pamatovat parametry
+- ✅ Můžeš vybrat **více kategorií najednou**
+- ✅ Vidíš souhrn před spuštěním
+- ✅ Automaticky sloučí výsledky z všech kombinací
+
+---
+
+### Bez interaktivního módu (rychlé):
+
+```bash
+# Základní použití - byty na prodej, 5 stránek
+python3 scrape_active_agents.py
+
+# Nebo s parametry:
+python3 scrape_active_agents.py --category-main 2 --locality 10
+```
 
 **Trvání:** cca 2-5 minut
 
