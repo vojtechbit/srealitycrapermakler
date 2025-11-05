@@ -475,7 +475,7 @@ class SrealityScraper(BaseScraper):
         }
 
     def _process_agent_data(self, agent_data: Dict, user_id: str) -> Optional[Record]:
-        """Process agent data and extract contact information."""
+        """Process agent data and extract contact information with aggregated stats."""
         if not agent_data or not agent_data.get("listings"):
             return None
 
@@ -511,32 +511,38 @@ class SrealityScraper(BaseScraper):
             if phone and email:
                 break
 
-        # Extract specializations (types of properties)
-        specializations = set()
-        listing_urls = []
-        listing_details = []
+        # Agreguj statistiky podle typu inzerátu
+        # Kategorie: 1=Byty, 2=Domy, 3=Pozemky, 4=Komerční, 5=Ostatní
+        # Typ: 1=Prodej, 2=Pronájem, 3=Dražby
+        stats = {}
         localities = []
 
         for listing in listings:
-            # Specialization
-            estate_type = self._estate_type(listing)
-            if estate_type:
-                specializations.add(estate_type)
+            # Získej kategorii a typ z API dat
+            seo = listing.get("seo", {}) if isinstance(listing.get("seo"), dict) else {}
+            category_main = seo.get("category_main_cb")
+            category_type = seo.get("category_type_cb")
 
-            # URL
-            url = self._extract_url(listing)
-            if url:
-                listing_urls.append(url)
-
-            # Details
-            name = listing.get("name")
-            if name:
-                listing_details.append(name)
+            if category_main and category_type:
+                key = (category_main, category_type)
+                stats[key] = stats.get(key, 0) + 1
 
             # Locality
             locality = listing.get("locality", "")
             if locality:
                 localities.append(locality)
+
+        # Převeď statistiky na čitelný text
+        category_names = {1: "Byty", 2: "Domy", 3: "Pozemky", 4: "Komerční", 5: "Ostatní"}
+        type_names = {1: "Prodej", 2: "Pronájem", 3: "Dražby"}
+
+        breakdown = []
+        for (cat, typ), count in sorted(stats.items(), key=lambda x: -x[1]):
+            cat_name = category_names.get(cat, f"Kategorie {cat}")
+            typ_name = type_names.get(typ, f"Typ {typ}")
+            breakdown.append(f"{cat_name}/{typ_name}: {count}")
+
+        breakdown_text = ", ".join(breakdown) if breakdown else "Neznámé"
 
         # Get most common locality
         region = None
@@ -556,11 +562,9 @@ class SrealityScraper(BaseScraper):
             "realitni_kancelar": company_name,
             "kraj": region,
             "mesto": city,
-            "specializace": specializations,
-            "detailni_informace": listing_details[:10],  # First 10 listings
-            "odkazy": listing_urls,
             "profil_url": profile_url,
             "pocet_inzeratu": len(listings),
+            "rozlozeni_inzeratu": breakdown_text,
         }
 
     # ------------------------------------------------------------------

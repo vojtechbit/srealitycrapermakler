@@ -49,7 +49,7 @@ def save_to_excel_with_formatting(records: list, output_path: str) -> None:
     link_columns = []
 
     for idx, header in enumerate(headers, 1):
-        if header in ["profil_maklere", "odkazy", "profil_url"]:
+        if header in ["profil_url"]:
             link_columns.append((idx, header))
 
     # Přidej hyperlinky
@@ -59,17 +59,9 @@ def save_to_excel_with_formatting(records: list, output_path: str) -> None:
             url = cell.value
 
             if url and isinstance(url, str) and url.startswith("http"):
-                if col_name == "odkazy" and "," in url:
-                    urls = [u.strip() for u in url.split(",") if u.strip()]
-                    first_url = urls[0]
-                    cell.hyperlink = first_url
-                    cell.value = f"Zobrazit ({len(urls)} inzerátů)"
-                    cell.font = Font(color="0000FF", underline="single")
-                else:
-                    cell.hyperlink = url
-                    if col_name in ["profil_maklere", "profil_url"]:
-                        cell.value = "Profil makléře"
-                    cell.font = Font(color="0000FF", underline="single")
+                cell.hyperlink = url
+                cell.value = "Profil makléře"
+                cell.font = Font(color="0000FF", underline="single")
 
     # Automatická šířka sloupců
     for column in ws.columns:
@@ -152,8 +144,11 @@ def main():
     args = parser.parse_args()
 
     print("="*80)
-    print("🎯 EFEKTIVNÍ SCRAPER: Aktivní makléři s kompletními profily")
+    print("🎯 SCRAPER AKTIVNÍCH MAKLÉŘŮ S KOMPLETNÍMI PROFILY")
     print("="*80)
+    print()
+    print("💡 První použití? Přečti si README_ACTIVE_AGENTS.md")
+    print("   nebo spusť: cat README_ACTIVE_AGENTS.md")
     print()
 
     category_names = {1: "Byty", 2: "Domy", 3: "Pozemky", 4: "Komerční", 5: "Ostatní"}
