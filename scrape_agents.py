@@ -243,9 +243,72 @@ def _validate_platforms(platforms: Iterable[str]) -> List[str]:
 
 
 def _save_to_excel(result: ScraperResult, output: Path) -> None:
+    """Uloží výsledky do Excelu s hyperlinky a formátováním."""
+    from openpyxl import load_workbook
+    from openpyxl.styles import Font
+    from openpyxl.utils import get_column_letter
+
     output.parent.mkdir(parents=True, exist_ok=True)
     df = pd.DataFrame(result.records)
-    df.to_excel(output, index=False)
+
+    # Nejdřív ulož běžně
+    df.to_excel(output, index=False, engine="openpyxl")
+
+    # Pak načti a přidej hyperlinky + formátování
+    wb = load_workbook(output)
+    ws = wb.active
+
+    # Najdi sloupce s linky
+    headers = [cell.value for cell in ws[1]]
+    link_columns = []
+
+    for idx, header in enumerate(headers, 1):
+        if header in ["profil_maklere", "odkazy", "profil_url"]:
+            link_columns.append((idx, header))
+
+    # Přidej hyperlinky
+    for row_idx in range(2, ws.max_row + 1):  # Začni od řádku 2 (přeskoč hlavičku)
+        for col_idx, col_name in link_columns:
+            cell = ws.cell(row=row_idx, column=col_idx)
+            url = cell.value
+
+            if url and isinstance(url, str) and url.startswith("http"):
+                # Zkrať text pro odkazy (pokud je to seznam URL)
+                if col_name == "odkazy" and "," in url:
+                    # Více odkazů - zobraz jen "Více odkazů"
+                    urls = [u.strip() for u in url.split(",") if u.strip()]
+                    first_url = urls[0]
+                    cell.hyperlink = first_url
+                    cell.value = f"Zobrazit ({len(urls)} inzerátů)"
+                    cell.font = Font(color="0000FF", underline="single")
+                else:
+                    # Jeden odkaz
+                    cell.hyperlink = url
+                    # Zkrať zobrazení
+                    if col_name == "profil_maklere":
+                        cell.value = "Profil makléře"
+                    cell.font = Font(color="0000FF", underline="single")
+
+    # Automatická šířka sloupců
+    for column in ws.columns:
+        max_length = 0
+        column_letter = get_column_letter(column[0].column)
+
+        for cell in column:
+            try:
+                if cell.value:
+                    cell_length = len(str(cell.value))
+                    if cell_length > max_length:
+                        max_length = cell_length
+            except:
+                pass
+
+        # Nastav šířku (s limitem)
+        adjusted_width = min(max_length + 2, 60)  # Max 60 znaků
+        ws.column_dimensions[column_letter].width = adjusted_width
+
+    # Ulož změny
+    wb.save(output)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
