@@ -15,6 +15,8 @@ Výstup:
 
 import argparse
 import sys
+import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
@@ -25,6 +27,24 @@ from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 
 from scrapers.sreality import SrealityScraper
+
+
+def slugify_company_name(name):
+    """Převede název company na URL-friendly slug."""
+    if not name or not isinstance(name, str):
+        return "company"
+
+    # Normalizace Unicode znaků
+    normalized = unicodedata.normalize("NFKD", name)
+    ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
+
+    # Převod na lowercase a nahrazení non-alphanumeric znaků pomlčkou
+    ascii_value = ascii_value.lower()
+    ascii_value = re.sub(r"[^a-z0-9]+", "-", ascii_value)
+    ascii_value = re.sub(r"-+", "-", ascii_value)  # Více pomlček → jedna
+    ascii_value = ascii_value.strip("-")
+
+    return ascii_value or "company"
 
 
 def scrape_agents_simple(
@@ -235,8 +255,9 @@ def scrape_agents_simple(
 
         rozlozeni = ", ".join(breakdown_items) if breakdown_items else "Neznámé"
 
-        # URL profilu (používáme user_id makléře, ne company_id!)
-        profil_url = f"https://www.sreality.cz/makler/{agent['user_id']}"
+        # URL profilu - správný formát: /adresar/{company-slug}/{company_id}/makleri/{user_id}
+        company_slug = slugify_company_name(agent.get("company"))
+        profil_url = f"https://www.sreality.cz/adresar/{company_slug}/{company_id}/makleri/{agent['user_id']}"
 
         final_records.append({
             "zdroj": "Sreality.cz",
