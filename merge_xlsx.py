@@ -58,6 +58,8 @@ def merge_xlsx_files(input_dir: Path, output_dir: Path) -> str:
             city_cols = ['Město', 'mesto', 'Mesto']
             count_cols = ['Počet inzerátů', 'pocet_inzeratu', 'Pocet inzeratu']
             types_cols = ['Typy nemovitostí', 'typy_nemovitosti', 'Typy nemovitosti']
+            # Priorita: "Všechny odkazy" obsahuje kompletní seznam, "Odkazy" jen zobrazené
+            all_links_cols = ['Všechny odkazy', 'vsechny_odkazy']
             links_cols = ['Odkazy', 'odkazy', 'inzeraty_odkazy']
             listings_cols = ['Inzeráty', 'inzeraty', 'Inzeraty']
 
@@ -75,6 +77,7 @@ def merge_xlsx_files(input_dir: Path, output_dir: Path) -> str:
             region_col = find_column(df, region_cols)
             city_col = find_column(df, city_cols)
             types_col = find_column(df, types_cols)
+            all_links_col = find_column(df, all_links_cols)  # Nový sloupec s VŠEMI odkazy
             links_col = find_column(df, links_cols)
             listings_col = find_column(df, listings_cols)
 
@@ -108,10 +111,17 @@ def merge_xlsx_files(input_dir: Path, output_dir: Path) -> str:
                 agent = agents[agent_key]
 
                 # Přidej odkazy (deduplikace pomocí set)
-                if links_col and pd.notna(row[links_col]):
+                # Prioritizuj "Všechny odkazy" (oddělené |), pak fallback na "Odkazy" (oddělené \n)
+                if all_links_col and pd.notna(row[all_links_col]):
+                    links_str = str(row[all_links_col])
+                    # Rozdělí podle | (nový formát)
+                    links = [link.strip() for link in links_str.split('|') if link.strip() and link.strip() != 'N/A']
+                    agent['odkazy'].update(links)
+                elif links_col and pd.notna(row[links_col]):
                     links_str = str(row[links_col])
-                    # Rozdělí podle nového řádku
-                    links = [link.strip() for link in links_str.split('\n') if link.strip() and link.strip() != 'N/A']
+                    # Rozdělí podle nového řádku (starý formát)
+                    links = [link.strip() for link in links_str.split('\n')
+                            if link.strip() and link.strip() != 'N/A' and not link.strip().startswith('...')]
                     agent['odkazy'].update(links)
 
                 # Přidej inzeráty
@@ -149,6 +159,19 @@ def merge_xlsx_files(input_dir: Path, output_dir: Path) -> str:
         if unique_listings_count == 0:
             unique_listings_count = len(agent['inzeraty'])
 
+        # Seřaď odkazy pro konzistentní výstup
+        sorted_odkazy = sorted(agent['odkazy']) if agent['odkazy'] else []
+        sorted_inzeraty = sorted(agent['inzeraty']) if agent['inzeraty'] else []
+
+        # Pro Excel zobrazíme prvních 20 odkazů + info o celkovém počtu
+        odkazy_display = '\n'.join(sorted_odkazy[:20])
+        if len(sorted_odkazy) > 20:
+            odkazy_display += f'\n... (celkem {len(sorted_odkazy)} odkazů)'
+
+        inzeraty_display = '\n'.join(sorted_inzeraty[:20])
+        if len(sorted_inzeraty) > 20:
+            inzeraty_display += f'\n... (celkem {len(sorted_inzeraty)} inzerátů)'
+
         results.append({
             'Jméno makléře': agent['jmeno_maklere'],
             'Telefon': agent['telefon'],
@@ -158,8 +181,10 @@ def merge_xlsx_files(input_dir: Path, output_dir: Path) -> str:
             'Město': agent['mesto'],
             'Počet unikátních inzerátů': unique_listings_count,
             'Typy nemovitostí': ', '.join(sorted(agent['typy_nemovitosti'])) if agent['typy_nemovitosti'] else 'N/A',
-            'Odkazy': '\n'.join(sorted(agent['odkazy'])[:10]) + ('\n...' if len(agent['odkazy']) > 10 else ''),
-            'Inzeráty': '\n'.join(sorted(agent['inzeraty'])[:10]) + ('\n...' if len(agent['inzeraty']) > 10 else ''),
+            'Odkazy': odkazy_display if odkazy_display else 'N/A',
+            'Inzeráty': inzeraty_display if inzeraty_display else 'N/A',
+            # Nový sloupec s VŠEMI odkazy pro případný další merge
+            'Všechny odkazy': '|'.join(sorted_odkazy) if sorted_odkazy else 'N/A',
         })
 
     # Seřaď podle počtu inzerátů

@@ -241,16 +241,22 @@ class AgentScraper:
                     'kraj': region,
                     'mesto': city,
                     'pocet_inzeratu': 0,
-                    'inzeraty': [],
-                    'inzeraty_odkazy': [],
+                    'inzeraty': set(),  # Změněno na set pro automatickou deduplikaci
+                    'inzeraty_odkazy': set(),  # Změněno na set pro automatickou deduplikaci
                     'typy_nemovitosti': set(),
                 }
 
             agent = self.agents[agent_key]
-            agent['pocet_inzeratu'] += 1
-            agent['inzeraty'].append(estate_name)
-            if estate_url:
-                agent['inzeraty_odkazy'].append(estate_url)
+
+            # Přidej inzerát jen pokud ještě není v setu (deduplikace)
+            if estate_url and estate_url not in agent['inzeraty_odkazy']:
+                agent['pocet_inzeratu'] += 1
+                agent['inzeraty'].add(estate_name)
+                agent['inzeraty_odkazy'].add(estate_url)
+            elif not estate_url and estate_name not in agent['inzeraty']:
+                # Pokud není URL, použij název jako unikátní identifikátor
+                agent['pocet_inzeratu'] += 1
+                agent['inzeraty'].add(estate_name)
 
             estate_type = self._get_estate_type(estate)
             if estate_type:
@@ -658,6 +664,19 @@ class AgentScraper:
 
         results = []
         for agent in self.agents.values():
+            # Seřaď odkazy pro konzistentní výstup
+            sorted_odkazy = sorted(agent['inzeraty_odkazy']) if agent['inzeraty_odkazy'] else []
+            sorted_inzeraty = sorted(agent['inzeraty']) if agent['inzeraty'] else []
+
+            # Pro Excel zobrazíme prvních 20 odkazů + info o celkovém počtu
+            odkazy_display = '\n'.join(sorted_odkazy[:20])
+            if len(sorted_odkazy) > 20:
+                odkazy_display += f'\n... (celkem {len(sorted_odkazy)} odkazů)'
+
+            inzeraty_display = '\n'.join(sorted_inzeraty[:20])
+            if len(sorted_inzeraty) > 20:
+                inzeraty_display += f'\n... (celkem {len(sorted_inzeraty)} inzerátů)'
+
             results.append({
                 'Jméno makléře': agent['jmeno_maklere'],
                 'Telefon': agent['telefon'],
@@ -667,8 +686,10 @@ class AgentScraper:
                 'Město': agent['mesto'],
                 'Počet inzerátů': agent['pocet_inzeratu'],
                 'Typy nemovitostí': ', '.join(sorted(agent['typy_nemovitosti'])) if agent['typy_nemovitosti'] else 'N/A',
-                'Odkazy': '\n'.join(agent['inzeraty_odkazy'][:5]),
-                'Inzeráty': '\n'.join(agent['inzeraty'][:5]) + ('\n...' if len(agent['inzeraty']) > 5 else ''),
+                'Odkazy': odkazy_display if odkazy_display else 'N/A',
+                'Inzeráty': inzeraty_display if inzeraty_display else 'N/A',
+                # Nový sloupec s VŠEMI odkazy pro merge (oddělené |)
+                'Všechny odkazy': '|'.join(sorted_odkazy) if sorted_odkazy else 'N/A',
             })
 
         df = pd.DataFrame(results)
