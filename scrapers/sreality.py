@@ -246,6 +246,7 @@ class SrealityScraper(BaseScraper):
                         "specializace": set(),
                         "detailni_informace": [],
                         "odkazy": [],
+                        "profil_maklere": agent_record.get("profil_maklere"),
                     },
                 )
 
@@ -519,6 +520,9 @@ class SrealityScraper(BaseScraper):
         estate_name = estate.get("name")
         locality = estate.get("locality", "") or ""
 
+        # Získej URL profilu makléře
+        profile_url = self._extract_agent_profile_url(seller, broker, company, agent_name, locality)
+
         return {
             "zdroj": self.name,
             "jmeno_maklere": agent_name or "Neznámý makléř",
@@ -530,7 +534,68 @@ class SrealityScraper(BaseScraper):
             "specializace": self._estate_type(estate),
             "detailni_informace": estate_name,
             "odkazy": [estate_url] if estate_url else [],
+            "profil_maklere": profile_url,
         }
+
+    def _extract_agent_profile_url(
+        self,
+        seller: Dict,
+        broker: Dict,
+        company: Dict,
+        agent_name: Optional[str],
+        locality: Optional[str]
+    ) -> Optional[str]:
+        """
+        Vytvoří URL profilu makléře.
+        Formát: https://www.sreality.cz/adresar/{slug}/{company_id}/makleri/{user_id}
+        """
+        # Získej user_id
+        user_id = (
+            seller.get("user_id")
+            or seller.get("id")
+            or broker.get("user_id")
+            or broker.get("id")
+        )
+
+        if not user_id:
+            return None
+
+        # Získej company_id
+        company_id = (
+            company.get("id")
+            or seller.get("company_id")
+            or seller.get("company", {}).get("id")
+        )
+
+        if not company_id:
+            return None
+
+        # Vytvoř slug z jména a lokality
+        slug_parts = []
+
+        if agent_name:
+            slug_parts.append(agent_name)
+
+        if locality:
+            # Vezmi první část lokality (město)
+            city = locality.split(",")[0].strip()
+            if city:
+                slug_parts.append(city)
+
+        if not slug_parts:
+            return None
+
+        # Slugify
+        slug_text = "-".join(slug_parts)
+        slug = _slugify_locality(slug_text)
+
+        if not slug:
+            return None
+
+        # Sestav URL
+        profile_url = f"{self._config.base_url}/adresar/{slug}/{company_id}/makleri/{user_id}"
+
+        return profile_url
 
     @staticmethod
     def _first_phone(data: Dict) -> Optional[str]:
