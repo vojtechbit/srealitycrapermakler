@@ -45,7 +45,10 @@ def scrape_agents_simple(
     limit = max_pages if max_pages is not None else None
 
     # Agregace dat o maklérích
+    # DŮLEŽITÉ: Základní API výpis NEMÁ seller/broker, jen company!
+    # Proto agregujeme podle company.id a pak stáhneme detaily
     agents = defaultdict(lambda: {
+        "company_id": None,  # Agregujeme podle company ID (ne user_id, ten není v základním výpisu!)
         "user_id": None,
         "jmeno": None,
         "telefon": None,
@@ -55,7 +58,7 @@ def scrape_agents_simple(
         "mesto": None,
         "inzeraty_breakdown": defaultdict(int),  # (category, type) -> count
         "total_count": 0,
-        "sample_hash_id": None,  # Pro případné doplnění detailů
+        "sample_hash_id": None,  # Pro stažení detailu a získání user_id
     })
 
     page = 1
@@ -87,111 +90,32 @@ def scrape_agents_simple(
 
         print(f"   Stránka {page}: {len(estates)} inzerátů")
 
-        # Debug counters
-        debug_no_embedded = 0
-        debug_no_seller_broker = 0
-        debug_no_user_id = 0
-
         # Zpracuj každý inzerát
         for estate in estates:
             total_listings += 1
 
-            # Získej user_id makléře z _links nebo _embedded
-            user_id = None
             embedded = estate.get("_embedded", {})
-
             if not embedded:
-                debug_no_embedded += 1
                 continue
 
-            # Zkus různé zdroje user_id
-            seller = embedded.get("seller", {})
-            broker = embedded.get("broker", {})
-
-            if not seller and not broker:
-                debug_no_seller_broker += 1
-                # DEBUG: Vypsat dostupné klíče v embedded + zkontrolovat company a _links
-                if total_listings <= 3:  # Jen pro první 3 inzeráty
-                    print(f"   DEBUG inzerát #{total_listings}: _embedded keys = {list(embedded.keys())}")
-
-                    # Zkontroluj company
-                    company = embedded.get("company", {})
-                    if company:
-                        print(f"      company keys: {list(company.keys())}")
-                        if company.get("user_id"):
-                            print(f"      ✅ company.user_id = {company.get('user_id')}")
-
-                    # Zkontroluj _links
-                    links = estate.get("_links", {})
-                    if links:
-                        print(f"      _links keys: {list(links.keys())}")
-                        # Hledej odkazy na makléře
-                        for key in links:
-                            if 'seller' in key.lower() or 'broker' in key.lower() or 'agent' in key.lower():
-                                print(f"      ✅ _links['{key}'] = {links[key]}")
-
+            # V základním API výpisu NENÍ seller/broker!
+            # Agregujeme podle company.id
+            company = embedded.get("company", {})
+            if not company:
                 continue
 
-            user_id = (
-                seller.get("user_id")
-                or seller.get("id")
-                or broker.get("user_id")
-                or broker.get("id")
-            )
-
-            if not user_id:
-                debug_no_user_id += 1
-                # DEBUG: Vypsat strukturu sellera/brokera
-                if total_listings <= 3:
-                    print(f"   DEBUG inzerát #{total_listings}:")
-                    if seller:
-                        print(f"      seller keys: {list(seller.keys())}")
-                    if broker:
-                        print(f"      broker keys: {list(broker.keys())}")
+            company_id = company.get("id")
+            if not company_id:
                 continue
 
-            user_id = str(user_id)
-            agent = agents[user_id]
+            company_id = str(company_id)
+            agent = agents[company_id]
 
             # První výskyt - ulož základní info
-            if agent["user_id"] is None:
-                agent["user_id"] = user_id
-                agent["sample_hash_id"] = estate.get("hash_id")  # Uchováme pro případný detail
-                agent["jmeno"] = (
-                    seller.get("user_name")
-                    or seller.get("name")
-                    or broker.get("user_name")
-                    or broker.get("name")
-                    or "Neznámý makléř"
-                )
-                agent["company"] = (
-                    seller.get("company_name")
-                    or seller.get("company", {}).get("name") if isinstance(seller.get("company"), dict) else None
-                    or embedded.get("company", {}).get("name")
-                )
-
-                # Telefon a email z embedded (pokud jsou dostupné)
-                phones = embedded.get("phones", [])
-                if phones and isinstance(phones, list):
-                    for phone in phones:
-                        if isinstance(phone, dict):
-                            agent["telefon"] = phone.get("number") or phone.get("value")
-                            if agent["telefon"]:
-                                break
-                        elif isinstance(phone, str):
-                            agent["telefon"] = phone
-                            break
-
-                emails = embedded.get("emails", [])
-                if emails and isinstance(emails, list):
-                    for email in emails:
-                        if isinstance(email, dict):
-                            agent["email"] = email.get("value") or email.get("email")
-                            if agent["email"]:
-                                break
-                        elif isinstance(email, str):
-                            agent["email"] = email
-                            break
+            if agent["company_id"] is None:
+                agent["company_id"] = company_id
+                agent["sample_hash_id"] = estate.get("hash_id")  # Pro stažení detailu
+                agent["company"] = company.get("name")
 
                 # Lokalita
                 locality = estate.get("locality", "")
@@ -202,25 +126,6 @@ def scrape_agents_simple(
                         if len(parts) > 1:
                             agent["kraj"] = parts[-1]
 
-            # Doplň kontakty pokud chybí
-            if not agent["telefon"]:
-                phones = embedded.get("phones", [])
-                if phones and isinstance(phones, list):
-                    for phone in phones:
-                        if isinstance(phone, dict):
-                            agent["telefon"] = phone.get("number") or phone.get("value")
-                            if agent["telefon"]:
-                                break
-
-            if not agent["email"]:
-                emails = embedded.get("emails", [])
-                if emails and isinstance(emails, list):
-                    for email in emails:
-                        if isinstance(email, dict):
-                            agent["email"] = email.get("value") or email.get("email")
-                            if agent["email"]:
-                                break
-
             # Spočítej typ inzerátu
             seo = estate.get("seo", {}) if isinstance(estate.get("seo"), dict) else {}
             cat_main = seo.get("category_main_cb") or category_main
@@ -229,13 +134,6 @@ def scrape_agents_simple(
             key = (cat_main, cat_type)
             agent["inzeraty_breakdown"][key] += 1
             agent["total_count"] += 1
-
-        # DEBUG: Vypsat statistiku
-        if debug_no_embedded > 0 or debug_no_seller_broker > 0 or debug_no_user_id > 0:
-            print(f"   ⚠️  DEBUG statistika:")
-            print(f"      Inzerátů bez _embedded: {debug_no_embedded}")
-            print(f"      Inzerátů bez seller/broker: {debug_no_seller_broker}")
-            print(f"      Inzerátů s seller/broker ale bez user_id: {debug_no_user_id}")
 
         # Kontrola konce
         result_size = payload.get("result_size", 0)
@@ -246,62 +144,88 @@ def scrape_agents_simple(
         scraper._delay()
 
     print(f"\n✅ Zpracováno {total_listings} inzerátů")
-    print(f"✅ Nalezeno {len(agents)} unikátních makléřů")
+    print(f"✅ Nalezeno {len(agents)} realitních kanceláří")
 
-    # FÁZE 2: Doplň kontakty pro makléře, kteří je nemají
-    agents_without_contacts = [
-        (user_id, agent) for user_id, agent in agents.items()
-        if not agent["telefon"] or not agent["email"]
-    ]
+    # FÁZE 2: Pro každou company stáhni detail JEDNOHO inzerátu a získej user_id + kontakty
+    print(f"\n🔍 Stahuji detaily pro získání makléřů a kontaktů...")
 
-    if agents_without_contacts:
-        print(f"\n🔍 Doplňuji kontakty pro {len(agents_without_contacts)} makléřů bez telefonu/emailu...")
+    for idx, (company_id, agent) in enumerate(agents.items(), 1):
+        hash_id = agent.get("sample_hash_id")
+        if not hash_id:
+            continue
 
-        for idx, (user_id, agent) in enumerate(agents_without_contacts, 1):
-            hash_id = agent.get("sample_hash_id")
-            if not hash_id:
-                continue
+        # Stáhni detail JEDNOHO inzerátu
+        detail_url = f"{scraper._config.base_url}/api/cs/v2/estates/{hash_id}"
+        detail = scraper._request(detail_url)
 
-            # Stáhni detail JEDNOHO inzerátu
-            detail_url = f"{scraper._config.base_url}/api/cs/v2/estates/{hash_id}"
-            detail = scraper._request(detail_url)
+        if detail:
+            embedded = detail.get("_embedded", {})
 
-            if detail:
-                embedded = detail.get("_embedded", {})
+            # Získej seller/broker (je jen v detailu!)
+            seller = embedded.get("seller", {})
+            broker = embedded.get("broker", {})
 
-                # Doplň telefon
-                if not agent["telefon"]:
-                    phones = embedded.get("phones", [])
-                    if phones and isinstance(phones, list):
-                        for phone in phones:
-                            if isinstance(phone, dict):
-                                agent["telefon"] = phone.get("number") or phone.get("value")
-                                if agent["telefon"]:
-                                    break
+            # Získej user_id makléře
+            user_id = (
+                seller.get("user_id")
+                or seller.get("id")
+                or broker.get("user_id")
+                or broker.get("id")
+            )
 
-                # Doplň email
-                if not agent["email"]:
-                    emails = embedded.get("emails", [])
-                    if emails and isinstance(emails, list):
-                        for email in emails:
-                            if isinstance(email, dict):
-                                agent["email"] = email.get("value") or email.get("email")
-                                if agent["email"]:
-                                    break
+            if user_id:
+                agent["user_id"] = str(user_id)
 
-                scraper._delay()
+            # Jméno makléře
+            agent["jmeno"] = (
+                seller.get("user_name")
+                or seller.get("name")
+                or broker.get("user_name")
+                or broker.get("name")
+                or "Neznámý makléř"
+            )
 
-                if idx % 10 == 0:
-                    print(f"   Doplněno {idx}/{len(agents_without_contacts)}...")
+            # Telefon
+            phones = embedded.get("phones", [])
+            if phones and isinstance(phones, list):
+                for phone in phones:
+                    if isinstance(phone, dict):
+                        agent["telefon"] = phone.get("number") or phone.get("value")
+                        if agent["telefon"]:
+                            break
+                    elif isinstance(phone, str):
+                        agent["telefon"] = phone
+                        break
 
-        print(f"✅ Doplněno kontaktů")
+            # Email
+            emails = embedded.get("emails", [])
+            if emails and isinstance(emails, list):
+                for email in emails:
+                    if isinstance(email, dict):
+                        agent["email"] = email.get("value") or email.get("email")
+                        if agent["email"]:
+                            break
+                    elif isinstance(email, str):
+                        agent["email"] = email
+                        break
+
+            scraper._delay()
+
+            if idx % 10 == 0:
+                print(f"   Zpracováno {idx}/{len(agents)}...")
+
+    print(f"✅ Detaily získány")
 
     # Převeď na finální formát
     category_names = {1: "Byty", 2: "Domy", 3: "Pozemky", 4: "Komerční", 5: "Ostatní"}
     type_names = {1: "Prodej", 2: "Pronájem", 3: "Dražby"}
 
     final_records = []
-    for user_id, agent in agents.items():
+    for company_id, agent in agents.items():
+        # Přeskoč agenty bez user_id (nepodařilo se získat z detailu)
+        if not agent.get("user_id"):
+            continue
+
         # Vytvoř rozložení inzerátů
         breakdown_items = []
         for (cat, typ), count in sorted(agent["inzeraty_breakdown"].items(), key=lambda x: -x[1]):
@@ -311,8 +235,8 @@ def scrape_agents_simple(
 
         rozlozeni = ", ".join(breakdown_items) if breakdown_items else "Neznámé"
 
-        # URL profilu
-        profil_url = f"https://www.sreality.cz/makler/{user_id}"
+        # URL profilu (používáme user_id makléře, ne company_id!)
+        profil_url = f"https://www.sreality.cz/makler/{agent['user_id']}"
 
         final_records.append({
             "zdroj": "Sreality.cz",
