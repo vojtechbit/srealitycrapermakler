@@ -93,6 +93,115 @@ class SrealityScraper(BaseScraper):
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    def scrape_active_agents_full_profiles(
+        self,
+        *,
+        category_main: int = 1,
+        category_type: int = 1,
+        locality_region_id: Optional[int] = None,
+        max_pages: Optional[int] = None,
+        full_scan: bool = False,
+        fetch_details: bool = True,
+    ) -> ScraperResult:
+        """
+        EFEKTIVNÍ METODA: Najde aktivní makléře a získá jejich kompletní profily.
+
+        1. Projde inzeráty podle kategorie/kraje
+        2. Identifikuje aktivní makléře (user_id)
+        3. Pro každého makléře získá VŠECHNY jeho inzeráty
+        4. Vrátí kompletní profily s přesným počtem inzerátů
+
+        Args:
+            category_main: Typ nemovitosti (1=Byty, 2=Domy, atd.)
+            category_type: Typ inzerátu (1=Prodej, 2=Pronájem, atd.)
+            locality_region_id: ID kraje (10=Praha, atd.) nebo None pro celou ČR
+            max_pages: Maximální počet stránek k procházení
+            full_scan: Projít všechny stránky
+            fetch_details: Stahovat detaily inzerátů pro přesnější kontakty
+
+        Returns:
+            ScraperResult s kompletními profily aktivních makléřů
+        """
+        print("🔍 Fáze 1: Hledám aktivní makléře...")
+
+        if full_scan:
+            max_pages = None
+
+        limit = max_pages if max_pages is not None else None
+
+        # Fáze 1: Najdi aktivní makléře
+        active_user_ids = set()
+        page = 1
+
+        while True:
+            if limit is not None and page > limit:
+                break
+
+            params = {
+                "category_main_cb": category_main,
+                "category_type_cb": category_type,
+                "page": page,
+                "per_page": 60,
+            }
+
+            if locality_region_id is not None:
+                params["locality_region_id"] = locality_region_id
+
+            payload = self._request(self._config.api_url, params=params)
+            if not payload:
+                break
+
+            estates = payload.get("_embedded", {}).get("estates", [])
+            if not estates:
+                break
+
+            # Projdi inzeráty a získej user_id
+            for estate in estates:
+                if fetch_details:
+                    detail = self._fetch_detail(estate)
+                else:
+                    detail = estate
+
+                if detail:
+                    embedded = detail.get("_embedded", {})
+                    seller = embedded.get("seller", {})
+                    broker = embedded.get("broker", {})
+
+                    user_id = (
+                        seller.get("user_id")
+                        or seller.get("id")
+                        or broker.get("user_id")
+                        or broker.get("id")
+                    )
+
+                    if user_id:
+                        active_user_ids.add(str(user_id))
+
+            result_size = payload.get("result_size", 0)
+            if (page * 60) >= result_size:
+                break
+
+            page += 1
+            self._delay()
+
+        print(f"✅ Nalezeno {len(active_user_ids)} aktivních makléřů")
+
+        # Fáze 2: Získej kompletní profily
+        print(f"\n🔍 Fáze 2: Získávám kompletní profily...")
+
+        result = self.scrape_agent_profiles(
+            agent_urls=list(active_user_ids),
+            fetch_details=fetch_details,
+        )
+
+        result.metadata.update({
+            "metoda": "Aktivní makléři s kompletními profily",
+            "kategorie": self._config.category_main.get(category_main, "Neznámé"),
+            "typ": self._config.category_type.get(category_type, "Neznámé"),
+        })
+
+        return result
+
     def scrape_agent_profiles(
         self,
         *,
