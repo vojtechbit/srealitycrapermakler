@@ -93,6 +93,115 @@ class SrealityScraper(BaseScraper):
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    def scrape_active_agents_full_profiles(
+        self,
+        *,
+        category_main: int = 1,
+        category_type: int = 1,
+        locality_region_id: Optional[int] = None,
+        max_pages: Optional[int] = None,
+        full_scan: bool = False,
+        fetch_details: bool = True,
+    ) -> ScraperResult:
+        """
+        EFEKTIVNÍ METODA: Najde aktivní makléře a získá jejich kompletní profily.
+
+        1. Projde inzeráty podle kategorie/kraje
+        2. Identifikuje aktivní makléře (user_id)
+        3. Pro každého makléře získá VŠECHNY jeho inzeráty
+        4. Vrátí kompletní profily s přesným počtem inzerátů
+
+        Args:
+            category_main: Typ nemovitosti (1=Byty, 2=Domy, atd.)
+            category_type: Typ inzerátu (1=Prodej, 2=Pronájem, atd.)
+            locality_region_id: ID kraje (10=Praha, atd.) nebo None pro celou ČR
+            max_pages: Maximální počet stránek k procházení
+            full_scan: Projít všechny stránky
+            fetch_details: Stahovat detaily inzerátů pro přesnější kontakty
+
+        Returns:
+            ScraperResult s kompletními profily aktivních makléřů
+        """
+        print("🔍 Fáze 1: Hledám aktivní makléře...")
+
+        if full_scan:
+            max_pages = None
+
+        limit = max_pages if max_pages is not None else None
+
+        # Fáze 1: Najdi aktivní makléře
+        active_user_ids = set()
+        page = 1
+
+        while True:
+            if limit is not None and page > limit:
+                break
+
+            params = {
+                "category_main_cb": category_main,
+                "category_type_cb": category_type,
+                "page": page,
+                "per_page": 60,
+            }
+
+            if locality_region_id is not None:
+                params["locality_region_id"] = locality_region_id
+
+            payload = self._request(self._config.api_url, params=params)
+            if not payload:
+                break
+
+            estates = payload.get("_embedded", {}).get("estates", [])
+            if not estates:
+                break
+
+            # Projdi inzeráty a získej user_id
+            for estate in estates:
+                if fetch_details:
+                    detail = self._fetch_detail(estate)
+                else:
+                    detail = estate
+
+                if detail:
+                    embedded = detail.get("_embedded", {})
+                    seller = embedded.get("seller", {})
+                    broker = embedded.get("broker", {})
+
+                    user_id = (
+                        seller.get("user_id")
+                        or seller.get("id")
+                        or broker.get("user_id")
+                        or broker.get("id")
+                    )
+
+                    if user_id:
+                        active_user_ids.add(str(user_id))
+
+            result_size = payload.get("result_size", 0)
+            if (page * 60) >= result_size:
+                break
+
+            page += 1
+            self._delay()
+
+        print(f"✅ Nalezeno {len(active_user_ids)} aktivních makléřů")
+
+        # Fáze 2: Získej kompletní profily
+        print(f"\n🔍 Fáze 2: Získávám kompletní profily...")
+
+        result = self.scrape_agent_profiles(
+            agent_urls=list(active_user_ids),
+            fetch_details=fetch_details,
+        )
+
+        result.metadata.update({
+            "metoda": "Aktivní makléři s kompletními profily",
+            "kategorie": self._config.category_main.get(category_main, "Neznámé"),
+            "typ": self._config.category_type.get(category_type, "Neznámé"),
+        })
+
+        return result
+
     def scrape_agent_profiles(
         self,
         *,
@@ -366,7 +475,7 @@ class SrealityScraper(BaseScraper):
         }
 
     def _process_agent_data(self, agent_data: Dict, user_id: str) -> Optional[Record]:
-        """Process agent data and extract contact information."""
+        """Process agent data and extract contact information with aggregated stats."""
         if not agent_data or not agent_data.get("listings"):
             return None
 
@@ -402,32 +511,38 @@ class SrealityScraper(BaseScraper):
             if phone and email:
                 break
 
-        # Extract specializations (types of properties)
-        specializations = set()
-        listing_urls = []
-        listing_details = []
+        # Agreguj statistiky podle typu inzerátu
+        # Kategorie: 1=Byty, 2=Domy, 3=Pozemky, 4=Komerční, 5=Ostatní
+        # Typ: 1=Prodej, 2=Pronájem, 3=Dražby
+        stats = {}
         localities = []
 
         for listing in listings:
-            # Specialization
-            estate_type = self._estate_type(listing)
-            if estate_type:
-                specializations.add(estate_type)
+            # Získej kategorii a typ z API dat
+            seo = listing.get("seo", {}) if isinstance(listing.get("seo"), dict) else {}
+            category_main = seo.get("category_main_cb")
+            category_type = seo.get("category_type_cb")
 
-            # URL
-            url = self._extract_url(listing)
-            if url:
-                listing_urls.append(url)
-
-            # Details
-            name = listing.get("name")
-            if name:
-                listing_details.append(name)
+            if category_main and category_type:
+                key = (category_main, category_type)
+                stats[key] = stats.get(key, 0) + 1
 
             # Locality
             locality = listing.get("locality", "")
             if locality:
                 localities.append(locality)
+
+        # Převeď statistiky na čitelný text
+        category_names = {1: "Byty", 2: "Domy", 3: "Pozemky", 4: "Komerční", 5: "Ostatní"}
+        type_names = {1: "Prodej", 2: "Pronájem", 3: "Dražby"}
+
+        breakdown = []
+        for (cat, typ), count in sorted(stats.items(), key=lambda x: -x[1]):
+            cat_name = category_names.get(cat, f"Kategorie {cat}")
+            typ_name = type_names.get(typ, f"Typ {typ}")
+            breakdown.append(f"{cat_name}/{typ_name}: {count}")
+
+        breakdown_text = ", ".join(breakdown) if breakdown else "Neznámé"
 
         # Get most common locality
         region = None
@@ -447,11 +562,9 @@ class SrealityScraper(BaseScraper):
             "realitni_kancelar": company_name,
             "kraj": region,
             "mesto": city,
-            "specializace": specializations,
-            "detailni_informace": listing_details[:10],  # First 10 listings
-            "odkazy": listing_urls,
             "profil_url": profile_url,
             "pocet_inzeratu": len(listings),
+            "rozlozeni_inzeratu": breakdown_text,
         }
 
     # ------------------------------------------------------------------
