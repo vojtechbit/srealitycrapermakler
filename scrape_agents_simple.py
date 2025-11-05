@@ -110,9 +110,26 @@ def scrape_agents_simple(
 
             if not seller and not broker:
                 debug_no_seller_broker += 1
-                # DEBUG: Vypsat dostupné klíče v embedded
+                # DEBUG: Vypsat dostupné klíče v embedded + zkontrolovat company a _links
                 if total_listings <= 3:  # Jen pro první 3 inzeráty
                     print(f"   DEBUG inzerát #{total_listings}: _embedded keys = {list(embedded.keys())}")
+
+                    # Zkontroluj company
+                    company = embedded.get("company", {})
+                    if company:
+                        print(f"      company keys: {list(company.keys())}")
+                        if company.get("user_id"):
+                            print(f"      ✅ company.user_id = {company.get('user_id')}")
+
+                    # Zkontroluj _links
+                    links = estate.get("_links", {})
+                    if links:
+                        print(f"      _links keys: {list(links.keys())}")
+                        # Hledej odkazy na makléře
+                        for key in links:
+                            if 'seller' in key.lower() or 'broker' in key.lower() or 'agent' in key.lower():
+                                print(f"      ✅ _links['{key}'] = {links[key]}")
+
                 continue
 
             user_id = (
