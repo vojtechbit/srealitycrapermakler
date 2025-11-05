@@ -93,6 +93,89 @@ class SrealityScraper(BaseScraper):
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    def scrape_agent_profiles(
+        self,
+        *,
+        agent_urls: list[str],
+        fetch_details: bool = True,
+    ) -> ScraperResult:
+        """
+        Scrape agent profiles from Sreality.cz.
+
+        Args:
+            agent_urls: List of agent profile URLs or user IDs
+            fetch_details: Whether to fetch detailed listing info
+
+        Returns:
+            ScraperResult with agent data
+        """
+        records: Dict[str, Dict[str, object]] = {}
+        result = ScraperResult()
+
+        for agent_url in agent_urls:
+            # Extract user_id from URL or use directly if it's an ID
+            user_id = self._extract_user_id(agent_url)
+
+            if not user_id:
+                result.errors.append(f"Nelze extrahovat user_id z: {agent_url}")
+                continue
+
+            # Get all listings from this agent
+            agent_data = self._fetch_agent_listings(user_id, fetch_details)
+
+            if not agent_data:
+                result.errors.append(f"Nepodařilo se načíst data pro user_id: {user_id}")
+                continue
+
+            # Process agent data
+            agent_record = self._process_agent_data(agent_data, user_id)
+
+            if agent_record:
+                key = agent_record["jmeno_maklere"], agent_record.get("telefon"), agent_record.get("email"), agent_record.get("realitni_kancelar")
+                key_str = "|".join(value or "" for value in key)
+
+                aggregated = records.setdefault(
+                    key_str,
+                    {
+                        "zdroj": self.name,
+                        "jmeno_maklere": agent_record.get("jmeno_maklere") or "Neznámý makléř",
+                        "telefon": agent_record.get("telefon"),
+                        "email": agent_record.get("email"),
+                        "realitni_kancelar": agent_record.get("realitni_kancelar"),
+                        "kraj": agent_record.get("kraj"),
+                        "mesto": agent_record.get("mesto"),
+                        "specializace": set(),
+                        "detailni_informace": [],
+                        "odkazy": [],
+                        "profil_url": agent_record.get("profil_url"),
+                        "pocet_inzeratu": agent_record.get("pocet_inzeratu", 0),
+                    },
+                )
+
+                if agent_record.get("specializace"):
+                    aggregated["specializace"].update(agent_record["specializace"])
+                if agent_record.get("detailni_informace"):
+                    aggregated["detailni_informace"].extend(agent_record["detailni_informace"])
+                if agent_record.get("odkazy"):
+                    aggregated["odkazy"].extend(agent_record["odkazy"])
+
+        # Finalize records
+        for aggregated in records.values():
+            aggregated["specializace"] = ", ".join(sorted(aggregated["specializace"])) or None
+            aggregated["detailni_informace"] = " | ".join(aggregated["detailni_informace"]) or None
+            aggregated["odkazy"] = ", ".join(dict.fromkeys(filter(None, aggregated["odkazy"])) or []) or None
+
+        result.records = BaseScraper.normalise_records(records.values())
+        result.metadata.update(
+            {
+                "platforma": self.name,
+                "cas_exportu": datetime.utcnow().isoformat(),
+                "celkem_makleru": str(len(result.records)),
+                "typ_scrapovani": "Profily makléřů",
+            }
+        )
+        return result
+
     def scrape(  # type: ignore[override]
         self,
         *,
@@ -196,6 +279,179 @@ class SrealityScraper(BaseScraper):
             }
         )
         return result
+
+    # ------------------------------------------------------------------
+    # Internals - Agent Profile Methods
+    # ------------------------------------------------------------------
+    def _extract_user_id(self, agent_input: str) -> Optional[str]:
+        """Extract user_id from URL or return the ID directly."""
+        if not agent_input:
+            return None
+
+        # If it's just a number, return it
+        if agent_input.isdigit():
+            return agent_input
+
+        # Try to extract from URL patterns:
+        # https://www.sreality.cz/makler/12345
+        # https://www.sreality.cz/en/makler/12345
+        # /makler/12345
+        patterns = [
+            r'/makler/(\d+)',
+            r'/realtor/(\d+)',
+            r'/agent/(\d+)',
+            r'user_id[=:](\d+)',
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, agent_input)
+            if match:
+                return match.group(1)
+
+        return None
+
+    def _fetch_agent_listings(self, user_id: str, fetch_details: bool = True) -> Optional[Dict]:
+        """Fetch all listings for a specific agent."""
+        all_listings = []
+        agent_info = {}
+        page = 1
+
+        while True:
+            params = {
+                "user_id": user_id,
+                "page": page,
+                "per_page": 60,
+            }
+
+            payload = self._request(self._config.api_url, params=params)
+
+            if not payload:
+                break
+
+            estates = payload.get("_embedded", {}).get("estates", [])
+
+            if not estates:
+                break
+
+            for estate in estates:
+                if fetch_details:
+                    detail = self._fetch_detail(estate)
+                else:
+                    detail = estate
+
+                if detail:
+                    all_listings.append(detail)
+                    # Extract agent info from first listing if we don't have it yet
+                    if not agent_info and detail.get("_embedded"):
+                        embedded = detail.get("_embedded", {})
+                        agent_info = {
+                            "seller": embedded.get("seller", {}),
+                            "broker": embedded.get("broker", {}),
+                            "company": embedded.get("company", {}),
+                        }
+
+            result_size = payload.get("result_size", 0)
+            if (page * 60) >= result_size:
+                break
+
+            page += 1
+            self._delay()
+
+        return {
+            "user_id": user_id,
+            "listings": all_listings,
+            "agent_info": agent_info,
+            "total_count": len(all_listings),
+        }
+
+    def _process_agent_data(self, agent_data: Dict, user_id: str) -> Optional[Record]:
+        """Process agent data and extract contact information."""
+        if not agent_data or not agent_data.get("listings"):
+            return None
+
+        listings = agent_data["listings"]
+        agent_info = agent_data.get("agent_info", {})
+
+        # Extract agent information from agent_info or first listing
+        seller = agent_info.get("seller", {})
+        broker = agent_info.get("broker", {})
+        company = agent_info.get("company", {})
+
+        agent_name = (
+            seller.get("user_name")
+            or seller.get("name")
+            or broker.get("user_name")
+            or broker.get("name")
+        )
+
+        company_name = (
+            seller.get("company_name")
+            or company.get("name")
+            or company.get("company_name")
+        )
+
+        # Try to get phone and email from first listing
+        phone = None
+        email = None
+        for listing in listings[:3]:  # Check first 3 listings
+            if not phone:
+                phone = self._first_phone(listing)
+            if not email:
+                email = self._first_email(listing)
+            if phone and email:
+                break
+
+        # Extract specializations (types of properties)
+        specializations = set()
+        listing_urls = []
+        listing_details = []
+        localities = []
+
+        for listing in listings:
+            # Specialization
+            estate_type = self._estate_type(listing)
+            if estate_type:
+                specializations.add(estate_type)
+
+            # URL
+            url = self._extract_url(listing)
+            if url:
+                listing_urls.append(url)
+
+            # Details
+            name = listing.get("name")
+            if name:
+                listing_details.append(name)
+
+            # Locality
+            locality = listing.get("locality", "")
+            if locality:
+                localities.append(locality)
+
+        # Get most common locality
+        region = None
+        city = None
+        if localities:
+            # Use the first locality
+            region = self._extract_region(localities[0])
+            city = self._extract_city(localities[0])
+
+        profile_url = f"https://www.sreality.cz/makler/{user_id}"
+
+        return {
+            "zdroj": self.name,
+            "jmeno_maklere": agent_name or "Neznámý makléř",
+            "telefon": phone,
+            "email": email,
+            "realitni_kancelar": company_name,
+            "kraj": region,
+            "mesto": city,
+            "specializace": specializations,
+            "detailni_informace": listing_details[:10],  # First 10 listings
+            "odkazy": listing_urls,
+            "profil_url": profile_url,
+            "pocet_inzeratu": len(listings),
+        }
 
     # ------------------------------------------------------------------
     # Internals

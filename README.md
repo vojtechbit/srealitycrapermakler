@@ -263,7 +263,123 @@ Program se nejprve zeptá, z jakých platforem chceš stahovat data, a následn�
 
 ---
 
-## 🚀 Použití scraperu
+## 🎯 Dva způsoby scrapování
+
+Tento nástroj nabízí **dva hlavní způsoby** získání kontaktů na makléře ze Sreality.cz:
+
+### 1️⃣ **Scraping podle kategorií** (`scrape_agents.py`)
+- Projde inzeráty podle kategorie (byty, domy, atd.)
+- Získá makléře z těchto inzerátů
+- **Výhoda**: Můžeš filtrovat podle typu nemovitosti, kraje, atd.
+- **Nevýhoda**: Nemusíš získat všechny inzeráty od jednoho makléře
+
+### 2️⃣ **Scraping profilů makléřů** (`scrape_agent_profiles.py`) 🆕
+- Projde konkrétní profily makléřů
+- Získá **všechny inzeráty** od daného makléře
+- **Výhoda**: Kompletní přehled inzerátů jednoho makléře, včetně počtu
+- **Nevýhoda**: Musíš znát URL nebo ID makléře předem
+
+---
+
+## 🔍 Jak najít profily makléřů
+
+Pro použití scraperu profilů potřebuješ URL nebo ID makléře:
+
+1. Jdi na [Sreality.cz](https://www.sreality.cz)
+2. Najdi libovolný inzerát od makléře
+3. Klikni na **jméno makléře** v inzerátu
+4. Zkopíruj URL z prohlížeče (např. `https://www.sreality.cz/makler/123456`)
+5. Můžeš použít celou URL nebo jen číslo (např. `123456`)
+
+---
+
+## 🚀 Použití scraperu profilů makléřů
+
+### Rychlý start
+
+**macOS:**
+```bash
+python3 scrape_agent_profiles.py -u "https://www.sreality.cz/makler/123456"
+```
+
+**Windows:**
+```cmd
+python scrape_agent_profiles.py -u "https://www.sreality.cz/makler/123456"
+```
+
+### Příklady použití
+
+**1. Jeden makléř podle URL:**
+```bash
+python3 scrape_agent_profiles.py -u "https://www.sreality.cz/makler/123456"
+```
+
+**2. Více makléřů najednou:**
+```bash
+python3 scrape_agent_profiles.py -u "https://www.sreality.cz/makler/123456" "https://www.sreality.cz/makler/789012"
+```
+
+**3. Použití jen user_id (čísla):**
+```bash
+python3 scrape_agent_profiles.py -u 123456 789012
+```
+
+**4. Načtení seznamu makléřů ze souboru:**
+```bash
+python3 scrape_agent_profiles.py -f makleri.txt
+```
+
+Formát souboru `makleri.txt` (jeden makléř na řádek):
+```
+https://www.sreality.cz/makler/123456
+https://www.sreality.cz/makler/789012
+345678
+# Toto je komentář
+```
+
+**5. Vlastní název výstupního souboru:**
+```bash
+python3 scrape_agent_profiles.py -u 123456 -o muj_export.xlsx
+```
+
+**6. Rychlejší scraping bez detailů:**
+```bash
+python3 scrape_agent_profiles.py -u 123456 --no-details
+```
+
+### Co získáš
+
+Výstupní Excel obsahuje:
+
+| Sloupec | Popis |
+|---------|-------|
+| `zdroj` | Název platformy (Sreality.cz) |
+| `jmeno_maklere` | Jméno makléře |
+| `telefon` | Telefon (pokud je dostupný) |
+| `email` | Email (pokud je dostupný) |
+| `realitni_kancelar` | Název realitní kanceláře |
+| `kraj` | Kraj (z nejčastější lokality) |
+| `mesto` | Město (z nejčastější lokality) |
+| `specializace` | Typy nemovitostí, které makléř nabízí |
+| `detailni_informace` | Názvy prvních 10 inzerátů |
+| `odkazy` | URL všech inzerátů makléře (oddělené čárkou) |
+| `profil_url` | URL profilu makléře |
+| `pocet_inzeratu` | **Celkový počet aktivních inzerátů makléře** 🎯 |
+
+### Časové odhady
+
+| Režim | Čas na makléře s 10 inzeráty | Čas na makléře se 100 inzeráty |
+|-------|------------------------------|--------------------------------|
+| **Bez detailů** (`--no-details`) | ~5-10 sekund | ~30-60 sekund |
+| **S detaily** (výchozí) | ~30-60 sekund | ~5-10 minut |
+
+**Doporučení:**
+- Pro rychlý přehled: `--no-details`
+- Pro přesné kontakty: bez přepínače (s detaily)
+
+---
+
+## 🚀 Použití scraperu podle kategorií
 
 ### Rychlý start
 
