@@ -1,0 +1,20 @@
+# Příklad souboru s URL nebo ID makléřů ze Sreality.cz
+# Jeden makléř na řádek, řádky začínající # jsou komentáře
+
+# Můžeš zadat plnou URL:
+# https://www.sreality.cz/makler/12345
+
+# Nebo jen user_id (číslo):
+# 12345
+
+# Jak najít URL makléře:
+# 1. Jdi na Sreality.cz
+# 2. Otevři jakýkoliv inzerát
+# 3. Klikni na jméno makléře
+# 4. Zkopíruj URL z prohlížeče (např. https://www.sreality.cz/makler/123456)
+# 5. Nebo použij jen číslo z URL (123456)
+
+# Zde zadej své makléře (odkomentuj a nahraď příklady):
+# https://www.sreality.cz/makler/123456
+# https://www.sreality.cz/makler/789012
+# 345678
