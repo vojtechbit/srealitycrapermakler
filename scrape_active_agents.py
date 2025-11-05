@@ -385,10 +385,10 @@ def main():
                         print(f"✅ Získáno {len(result.records)} makléřů z této kombinace")
                         all_records.extend(result.records)
 
-        # Deduplikuj makléře
+        # Slouč a deduplikuj makléře
         if all_records:
-            # Deduplikace podle jména + telefon + email + kancelář
-            unique_records = {}
+            # Agregace podle jména + telefon + email + kancelář
+            merged_records = {}
             for record in all_records:
                 key = (
                     record.get("jmeno_maklere"),
@@ -398,11 +398,74 @@ def main():
                 )
                 key_str = "|".join(str(v) if v else "" for v in key)
 
-                if key_str not in unique_records:
-                    unique_records[key_str] = record
+                if key_str not in merged_records:
+                    # První výskyt - ulož jako základ
+                    merged_records[key_str] = {
+                        "zdroj": record.get("zdroj"),
+                        "jmeno_maklere": record.get("jmeno_maklere"),
+                        "telefon": record.get("telefon"),
+                        "email": record.get("email"),
+                        "realitni_kancelar": record.get("realitni_kancelar"),
+                        "kraj": record.get("kraj"),
+                        "mesto": record.get("mesto"),
+                        "profil_url": record.get("profil_url"),
+                        "pocet_inzeratu": record.get("pocet_inzeratu", 0),
+                        "rozlozeni_parts": [],  # Temporary list for merging
+                    }
 
-            final_records = list(unique_records.values())
-            print(f"\n✅ Celkem {len(final_records)} unikátních makléřů (po deduplikaci)")
+                    # Parse rozlozeni_inzeratu
+                    rozlozeni = record.get("rozlozeni_inzeratu", "")
+                    if rozlozeni and rozlozeni != "Neznámé":
+                        merged_records[key_str]["rozlozeni_parts"].append(rozlozeni)
+                else:
+                    # Další výskyt - SLOUČIT data
+                    existing = merged_records[key_str]
+
+                    # Sečti počet inzerátů
+                    existing["pocet_inzeratu"] += record.get("pocet_inzeratu", 0)
+
+                    # Přidej rozložení
+                    rozlozeni = record.get("rozlozeni_inzeratu", "")
+                    if rozlozeni and rozlozeni != "Neznámé":
+                        existing["rozlozeni_parts"].append(rozlozeni)
+
+                    # Zachovej kontakty pokud chybí
+                    if not existing.get("telefon") and record.get("telefon"):
+                        existing["telefon"] = record.get("telefon")
+                    if not existing.get("email") and record.get("email"):
+                        existing["email"] = record.get("email")
+
+            # Slouč rozlozeni_parts do finálního stringu
+            final_records = []
+            for key_str, record in merged_records.items():
+                # Parsuj všechny části rozložení a agreguj
+                all_breakdown = {}
+                for part in record["rozlozeni_parts"]:
+                    # Parse "Byty/Prodej: 30, Domy/Prodej: 15"
+                    for item in part.split(","):
+                        item = item.strip()
+                        if ":" in item:
+                            category_type, count_str = item.rsplit(":", 1)
+                            category_type = category_type.strip()
+                            try:
+                                count = int(count_str.strip())
+                                all_breakdown[category_type] = all_breakdown.get(category_type, 0) + count
+                            except ValueError:
+                                pass
+
+                # Vytvoř finální rozlozeni_inzeratu
+                if all_breakdown:
+                    breakdown_items = [f"{cat}: {count}" for cat, count in sorted(all_breakdown.items(), key=lambda x: -x[1])]
+                    record["rozlozeni_inzeratu"] = ", ".join(breakdown_items)
+                else:
+                    record["rozlozeni_inzeratu"] = "Neznámé"
+
+                # Odstraň temporary field
+                del record["rozlozeni_parts"]
+
+                final_records.append(record)
+
+            print(f"\n✅ Celkem {len(final_records)} unikátních makléřů (po sloučení a deduplikaci)")
 
             # Výstupní soubor
             if args.output:
