@@ -87,6 +87,11 @@ def scrape_agents_simple(
 
         print(f"   Stránka {page}: {len(estates)} inzerátů")
 
+        # Debug counters
+        debug_no_embedded = 0
+        debug_no_seller_broker = 0
+        debug_no_user_id = 0
+
         # Zpracuj každý inzerát
         for estate in estates:
             total_listings += 1
@@ -95,9 +100,20 @@ def scrape_agents_simple(
             user_id = None
             embedded = estate.get("_embedded", {})
 
+            if not embedded:
+                debug_no_embedded += 1
+                continue
+
             # Zkus různé zdroje user_id
             seller = embedded.get("seller", {})
             broker = embedded.get("broker", {})
+
+            if not seller and not broker:
+                debug_no_seller_broker += 1
+                # DEBUG: Vypsat dostupné klíče v embedded
+                if total_listings <= 3:  # Jen pro první 3 inzeráty
+                    print(f"   DEBUG inzerát #{total_listings}: _embedded keys = {list(embedded.keys())}")
+                continue
 
             user_id = (
                 seller.get("user_id")
@@ -107,6 +123,14 @@ def scrape_agents_simple(
             )
 
             if not user_id:
+                debug_no_user_id += 1
+                # DEBUG: Vypsat strukturu sellera/brokera
+                if total_listings <= 3:
+                    print(f"   DEBUG inzerát #{total_listings}:")
+                    if seller:
+                        print(f"      seller keys: {list(seller.keys())}")
+                    if broker:
+                        print(f"      broker keys: {list(broker.keys())}")
                 continue
 
             user_id = str(user_id)
@@ -188,6 +212,13 @@ def scrape_agents_simple(
             key = (cat_main, cat_type)
             agent["inzeraty_breakdown"][key] += 1
             agent["total_count"] += 1
+
+        # DEBUG: Vypsat statistiku
+        if debug_no_embedded > 0 or debug_no_seller_broker > 0 or debug_no_user_id > 0:
+            print(f"   ⚠️  DEBUG statistika:")
+            print(f"      Inzerátů bez _embedded: {debug_no_embedded}")
+            print(f"      Inzerátů bez seller/broker: {debug_no_seller_broker}")
+            print(f"      Inzerátů s seller/broker ale bez user_id: {debug_no_user_id}")
 
         # Kontrola konce
         result_size = payload.get("result_size", 0)
