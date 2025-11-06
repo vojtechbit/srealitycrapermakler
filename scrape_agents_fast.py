@@ -91,7 +91,9 @@ def scrape_agents_fast(
         if not estates:
             break
 
-        print(f"   Stránka {page}: {len(estates)} inzerátů")
+        # Počítadla pro tuto stránku
+        new_companies = 0
+        existing_companies = 0
 
         for estate in estates:
             total_listings += 1
@@ -107,11 +109,18 @@ def scrape_agents_fast(
                 continue
 
             company_id = str(company_id)
+
+            # Kontrola, jestli je company nová
+            is_new = company_id not in companies or companies[company_id]["company_id"] is None
+
             comp = companies[company_id]
 
             if comp["company_id"] is None:
                 comp["company_id"] = company_id
                 comp["company_name"] = company.get("name")
+                new_companies += 1
+            else:
+                existing_companies += 1
 
             comp["total_estates"] += 1
 
@@ -126,6 +135,11 @@ def scrape_agents_fast(
             cat_type = seo.get("category_type_cb") or category_type
             key = (cat_main, cat_type)
             comp["category_breakdown"][key] += 1
+
+        # Výpis statistik pro tuto stránku
+        print(f"   Stránka {page}: {len(estates)} inzerátů")
+        if new_companies > 0 or existing_companies > 0:
+            print(f"      → Nové RK: {new_companies}, Existující RK: {existing_companies}")
 
         result_size = payload.get("result_size", 0)
         if (page * 60) >= result_size:
