@@ -351,9 +351,95 @@ def save_to_excel_hierarchical(records, output_path):
     print(f"🏠 Celkem inzerátů: {total_estates}")
 
 
+def prompt_for_params():
+    """Interaktivní výběr parametrů s podporou multiple selection."""
+    print("\n" + "="*80)
+    print("📋 INTERAKTIVNÍ VÝBĚR PARAMETRŮ")
+    print("="*80)
+    print()
+
+    # Kategorie
+    print("Typ nemovitosti:")
+    print("  1 = Byty")
+    print("  2 = Domy")
+    print("  3 = Pozemky")
+    print("  4 = Komerční")
+    print("  5 = Ostatní")
+    category_input = input("\nVyber typ nemovitosti (1-5, oddělené čárkou) [1]: ").strip() or "1"
+    categories = [c.strip() for c in category_input.split(",")]
+    category_main_list = [int(c) for c in categories if c.isdigit()]
+
+    # Typy inzerátů
+    print("\nTyp inzerátu:")
+    print("  1 = Prodej")
+    print("  2 = Pronájem")
+    print("  3 = Dražby")
+    type_input = input("\nVyber typ inzerátu (1-3, oddělené čárkou) [1]: ").strip() or "1"
+    types = [t.strip() for t in type_input.split(",")]
+    category_type_list = [int(t) for t in types if t.isdigit()]
+
+    # Kraje
+    print("\nKraj (volitelné):")
+    print("  10 = Praha")
+    print("  11 = Středočeský")
+    print("  12 = Jihočeský")
+    print("  13 = Plzeňský")
+    print("  14 = Karlovarský")
+    print("  15 = Ústecký")
+    print("  16 = Liberecký")
+    print("  17 = Královéhradecký")
+    print("  18 = Pardubický")
+    print("  19 = Vysočina")
+    print("  20 = Jihomoravský")
+    print("  21 = Olomoucký")
+    print("  22 = Zlínský")
+    print("  23 = Moravskoslezský")
+    locality_input = input("\nVyber kraje (10-23, oddělené čárkami) nebo Enter pro celou ČR: ").strip()
+
+    locality_list = None
+    if locality_input:
+        localities = [l.strip() for l in locality_input.split(",")]
+        locality_list = [int(l) for l in localities if l.isdigit()]
+
+    # Stránky
+    print("\nPočet stránek:")
+    pages_input = input("Max stránek (nebo 'all' pro všechny) [5]: ").strip() or "5"
+    if pages_input.lower() == "all":
+        max_pages = None
+        full_scan = True
+    else:
+        max_pages = int(pages_input) if pages_input.isdigit() else 5
+        full_scan = False
+
+    print("\n" + "="*80)
+    print(f"✅ Vybrané parametry:")
+    print(f"   Typy nemovitostí: {category_main_list}")
+    print(f"   Typy inzerátů: {category_type_list}")
+    print(f"   Kraje: {locality_list or 'Celá ČR'}")
+    print(f"   Stránek: {'VŠECHNY' if full_scan else max_pages}")
+    print("="*80)
+    print()
+
+    return {
+        "category_main_list": category_main_list,
+        "category_type_list": category_type_list,
+        "locality_list": locality_list,
+        "max_pages": max_pages,
+        "full_scan": full_scan,
+    }
+
+
+def merge_records(all_records):
+    """Sloučí záznamy z více scrapování."""
+    # Pro fast scraper jen spojíme všechny záznamy
+    # (každý má unikátní company + makléř kombinaci)
+    return all_records
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 
+    parser.add_argument("--prompt", action="store_true", help="Interaktivní výběr parametrů")
     parser.add_argument("--category-main", type=int, default=1, help="1=Byty, 2=Domy, ...")
     parser.add_argument("--category-type", type=int, default=1, help="1=Prodej, 2=Pronájem, ...")
     parser.add_argument("--locality", type=int, help="10=Praha, 11=Středočeský, ...")
@@ -377,28 +463,62 @@ def main():
         22: "Zlínský", 23: "Moravskoslezský"
     }
 
-    print("📋 Parametry:")
-    print(f"   • Typ: {category_names.get(args.category_main, 'Neznámý')}")
-    print(f"   • Inzerát: {type_names.get(args.category_type, 'Neznámý')}")
-    print(f"   • Kraj: {region_names.get(args.locality, 'Celá ČR')}")
-    print(f"   • Stránek: {'VŠECHNY' if args.full_scan else args.max_pages}")
-    print()
-
     try:
         scraper = SrealityScraper()
 
-        records = scrape_agents_fast(
-            scraper,
-            args.category_main,
-            args.category_type,
-            args.locality,
-            args.max_pages,
-            args.full_scan,
-        )
+        if args.prompt:
+            # Interaktivní mód
+            params = prompt_for_params()
 
-        if records:
+            # Vytvoř kombinace parametrů
+            all_records = []
+
+            for category_main in params["category_main_list"]:
+                for category_type in params["category_type_list"]:
+                    localities = params["locality_list"] or [None]
+
+                    for locality in localities:
+                        print("\n" + "="*80)
+                        print(f"🔍 Scraping: {category_names.get(category_main)} / {type_names.get(category_type)}")
+                        if locality:
+                            print(f"   Kraj: {region_names.get(locality)}")
+                        print("="*80)
+
+                        records = scrape_agents_fast(
+                            scraper,
+                            category_main,
+                            category_type,
+                            locality,
+                            params["max_pages"],
+                            params["full_scan"],
+                        )
+
+                        all_records.extend(records)
+
+            # Slouč výsledky
+            final_records = merge_records(all_records)
+
+        else:
+            # Manuální parametry
+            print("📋 Parametry:")
+            print(f"   • Typ: {category_names.get(args.category_main, 'Neznámý')}")
+            print(f"   • Inzerát: {type_names.get(args.category_type, 'Neznámý')}")
+            print(f"   • Kraj: {region_names.get(args.locality, 'Celá ČR')}")
+            print(f"   • Stránek: {'VŠECHNY' if args.full_scan else args.max_pages}")
+            print()
+
+            final_records = scrape_agents_fast(
+                scraper,
+                args.category_main,
+                args.category_type,
+                args.locality,
+                args.max_pages,
+                args.full_scan,
+            )
+
+        if final_records:
             output = args.output or f"data/makleri_fast_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-            save_to_excel_hierarchical(records, output)
+            save_to_excel_hierarchical(final_records, output)
         else:
             print("⚠️  Žádná data")
 
