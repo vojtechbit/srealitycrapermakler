@@ -152,9 +152,10 @@ def scrape_agents_fast_combined(
                 key = (cat_main, cat_type)
                 comp["category_breakdown"][key] += 1
 
-            # Výpis - 3 statistiky (teď správně!)
+            # Výpis - statistiky s running total!
+            current_total_companies = sum(1 for c in all_companies.values() if c["company_id"] is not None)
             print(f"      Stránka {page}: {len(estates)} inzerátů")
-            print(f"         → RK na stránce: {len(companies_on_page)}, Nové: {len(new_companies_set)}, Již známé: {len(already_known_set)}")
+            print(f"         → RK na stránce: {len(companies_on_page)}, Nové: {len(new_companies_set)}, Již známé: {len(already_known_set)}, Celkem RK: {current_total_companies}")
 
             result_size = payload.get("result_size", 0)
             if (page * 60) >= result_size:
