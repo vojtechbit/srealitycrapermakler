@@ -103,8 +103,8 @@ def scrape_agents_fast_combined(
 
             # Počítadla pro tuto stránku
             companies_on_page = set()
-            new_companies = 0
-            existing_companies = 0
+            new_companies_set = set()
+            already_known_set = set()
 
             for estate in estates:
                 total_listings_all += 1
@@ -120,18 +120,24 @@ def scrape_agents_fast_combined(
                     continue
 
                 company_id = str(company_id)
-                companies_on_page.add(company_id)
 
-                # Kontrola, jestli je company nová (napříč VŠEMI kombinacemi!)
+                # Kontrola, jestli je company nová (jen při prvním výskytu na stránce!)
+                if company_id not in companies_on_page:
+                    companies_on_page.add(company_id)
+
+                    comp = all_companies[company_id]
+
+                    if comp["company_id"] is None:
+                        # Úplně nová RK (napříč všemi kombinacemi)
+                        comp["company_id"] = company_id
+                        comp["company_name"] = company.get("name")
+                        new_companies_set.add(company_id)
+                    else:
+                        # Už známá z předchozí kombinace/stránky
+                        already_known_set.add(company_id)
+
+                # Aktualizuj statistiky (pro každý inzerát)
                 comp = all_companies[company_id]
-
-                if comp["company_id"] is None:
-                    comp["company_id"] = company_id
-                    comp["company_name"] = company.get("name")
-                    new_companies += 1
-                else:
-                    existing_companies += 1
-
                 comp["total_estates"] += 1
 
                 # Lokalita
@@ -146,9 +152,10 @@ def scrape_agents_fast_combined(
                 key = (cat_main, cat_type)
                 comp["category_breakdown"][key] += 1
 
-            # Výpis - 3 statistiky!
+            # Výpis - statistiky s running total!
+            current_total_companies = sum(1 for c in all_companies.values() if c["company_id"] is not None)
             print(f"      Stránka {page}: {len(estates)} inzerátů")
-            print(f"         → RK na stránce: {len(companies_on_page)}, Nové: {new_companies}, Již známé: {existing_companies}")
+            print(f"         → RK na stránce: {len(companies_on_page)}, Nové: {len(new_companies_set)}, Již známé: {len(already_known_set)}, Celkem RK: {current_total_companies}")
 
             result_size = payload.get("result_size", 0)
             if (page * 60) >= result_size:
