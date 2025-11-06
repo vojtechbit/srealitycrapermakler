@@ -137,33 +137,59 @@ def scrape_agents_fast(
     print(f"\n✅ Zpracováno {total_listings} inzerátů")
     print(f"✅ Nalezeno {len(companies)} realitních kanceláří")
 
-    # FÁZE 2: Pro každou company stáhni seznam makléřů
+    # FÁZE 2: Pro každou company stáhni seznam makléřů (s paginací!)
     print(f"\n🔍 FÁZE 2: Stahuji seznam makléřů z company API...")
 
     all_records = []
 
     for idx, (company_id, comp) in enumerate(companies.items(), 1):
-        company_url = f"{scraper._config.base_url}/api/cs/v2/companies/{company_id}"
-        company_data = scraper._request(company_url)
+        # Stáhnout VŠECHNY makléře (může být více stránek!)
+        all_sellers = []
+        page = 1
 
-        if not company_data:
-            print(f"   ⚠️  Chyba při stahování company {company_id}")
-            continue
+        while True:
+            company_url = f"{scraper._config.base_url}/api/cs/v2/companies/{company_id}"
+            params = {"page": page} if page > 1 else None
+            company_data = scraper._request(company_url, params=params)
 
-        # Získej seznam makléřů
-        embedded = company_data.get("_embedded", {})
-        sellers_data = embedded.get("sellers", {})
+            if not company_data:
+                print(f"   ⚠️  Chyba při stahování company {company_id}")
+                break
 
-        if isinstance(sellers_data, dict):
-            sellers_list = sellers_data.get("sellers", [])
-        else:
-            sellers_list = []
+            # Získej seznam makléřů
+            embedded = company_data.get("_embedded", {})
+            sellers_data = embedded.get("sellers", {})
 
-        if not sellers_list:
+            if isinstance(sellers_data, dict):
+                result_size = sellers_data.get("result_size", 0)
+                per_page = sellers_data.get("per_page", 20)
+                sellers_list = sellers_data.get("sellers", [])
+            else:
+                sellers_list = []
+                result_size = 0
+                per_page = 20
+
+            if not sellers_list:
+                break
+
+            all_sellers.extend(sellers_list)
+
+            # Kontrola, jestli jsou další stránky
+            if (page * per_page) >= result_size:
+                break
+
+            page += 1
+            scraper._delay()  # Delay mezi stránkami
+
+        if not all_sellers:
             print(f"   ⚠️  Company {comp['company_name']}: žádní makléři")
             continue
 
-        print(f"   {idx}/{len(companies)}: {comp['company_name']} - {len(sellers_list)} makléřů")
+        # Pokud bylo více stránek, ukaž to
+        if page > 1:
+            print(f"   {idx}/{len(companies)}: {comp['company_name']} - {len(all_sellers)} makléřů ({page} stránek)")
+        else:
+            print(f"   {idx}/{len(companies)}: {comp['company_name']} - {len(all_sellers)} makléřů")
 
         # Lokalita - vezmi nejčastější
         localities_list = list(comp["localities"])
@@ -205,7 +231,7 @@ def scrape_agents_fast(
         })
 
         # Makléři pod company
-        for seller in sellers_list:
+        for seller in all_sellers:
             seller_id = seller.get("id")
             seller_name = seller.get("name", "")
 
