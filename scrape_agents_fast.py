@@ -101,7 +101,8 @@ def scrape_agents_fast_combined(
             if not estates:
                 break
 
-            # Počítadla
+            # Počítadla pro tuto stránku
+            companies_on_page = set()
             new_companies = 0
             existing_companies = 0
 
@@ -119,6 +120,7 @@ def scrape_agents_fast_combined(
                     continue
 
                 company_id = str(company_id)
+                companies_on_page.add(company_id)
 
                 # Kontrola, jestli je company nová (napříč VŠEMI kombinacemi!)
                 comp = all_companies[company_id]
@@ -144,11 +146,9 @@ def scrape_agents_fast_combined(
                 key = (cat_main, cat_type)
                 comp["category_breakdown"][key] += 1
 
-            # Výpis
-            print(f"      Stránka {page}: {len(estates)} inzerátů", end="")
-            if new_companies > 0 or existing_companies > 0:
-                print(f" (Nové RK: {new_companies}, Existující: {existing_companies})", end="")
-            print()
+            # Výpis - 3 statistiky!
+            print(f"      Stránka {page}: {len(estates)} inzerátů")
+            print(f"         → RK na stránce: {len(companies_on_page)}, Nové: {new_companies}, Již známé: {existing_companies}")
 
             result_size = payload.get("result_size", 0)
             if (page * 60) >= result_size:
