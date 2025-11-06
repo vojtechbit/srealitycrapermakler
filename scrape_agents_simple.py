@@ -133,7 +133,10 @@ def scrape_agents_simple(
 
     # FÁZE 2: Stáhnout detaily VŠECH inzerátů a agregovat podle user_id (správně!)
     print(f"\n🔍 Stahuji detaily všech inzerátů pro nalezení všech makléřů...")
-    print(f"   (Toto může chvíli trvat - {len(estates_list)} inzerátů × 2 sekundy = ~{len(estates_list) * 2 / 60:.1f} minut)")
+    print(f"   (Toto může chvíli trvat - {len(estates_list)} inzerátů × 1-2 sekundy)")
+
+    # Optimalizace: Cachujeme user_id podle hash_id pro rychlejší lookup
+    hash_to_user = {}  # hash_id -> user_id mapping
 
     agents = defaultdict(lambda: {
         "user_id": None,
@@ -172,6 +175,7 @@ def scrape_agents_simple(
 
             if user_id:
                 user_id = str(user_id)
+                hash_to_user[hash_id] = user_id
                 agent = agents[user_id]
 
                 # První výskyt - ulož základní info
@@ -229,10 +233,14 @@ def scrape_agents_simple(
                 agent["inzeraty_breakdown"][key] += 1
                 agent["total_count"] += 1
 
-            scraper._delay()
+            # Kratší delay - balancujeme rychlost vs. Cloudflare
+            # Místo random 1-3s používáme 0.5-1.5s
+            import time
+            import random
+            time.sleep(random.uniform(0.5, 1.5))
 
             if idx % 10 == 0:
-                print(f"   Zpracováno {idx}/{len(estates_list)}...")
+                print(f"   Zpracováno {idx}/{len(estates_list)}... (nalezeno {len(agents)} unikátních makléřů)")
 
     print(f"\n✅ Detaily získány")
     print(f"✅ Nalezeno {len(agents)} unikátních makléřů")
