@@ -38,6 +38,254 @@ def slugify_company_name(name):
     return ascii_value.strip("-") or "company"
 
 
+def scrape_agents_fast_combined(
+    scraper,
+    combinations,  # List of (category_main, category_type, locality) tuples
+    max_pages,
+    full_scan,
+):
+    """
+    Super rychlý scraping s deduplikací companies napříč kombinacemi.
+
+    FÁZE 1: Agreguj companies ze VŠECH kombinací
+    FÁZE 2: Deduplikuj (každá company jen jednou)
+    FÁZE 3: Volej sellers API jen pro unikátní companies
+    """
+
+    print(f"🔍 FÁZE 1: Agregace companies ze všech kombinací...")
+
+    if full_scan:
+        max_pages = None
+
+    limit = max_pages if max_pages is not None else None
+
+    # Sdílený dictionary pro VŠECHNY kombinace!
+    all_companies = defaultdict(lambda: {
+        "company_id": None,
+        "company_name": None,
+        "total_estates": 0,
+        "localities": set(),
+        "category_breakdown": defaultdict(int),
+    })
+
+    total_listings_all = 0
+    category_names = {1: "Byty", 2: "Domy", 3: "Pozemky", 4: "Komerční", 5: "Ostatní"}
+    type_names = {1: "Prodej", 2: "Pronájem", 3: "Dražby"}
+
+    # FÁZE 1: Projdi VŠECHNY kombinace a agreguj do jednoho dictionary
+    for combo_idx, (category_main, category_type, locality_region_id) in enumerate(combinations, 1):
+        print(f"\n   Kombinace {combo_idx}/{len(combinations)}: {category_names.get(category_main)} / {type_names.get(category_type)}")
+
+        page = 1
+
+        while True:
+            if limit is not None and page > limit:
+                break
+
+            params = {
+                "category_main_cb": category_main,
+                "category_type_cb": category_type,
+                "page": page,
+                "per_page": 60,
+            }
+
+            if locality_region_id is not None:
+                params["locality_region_id"] = locality_region_id
+
+            payload = scraper._request(scraper._config.api_url, params=params)
+            if not payload:
+                print(f"      ⚠️  Chyba při stahování stránky {page}")
+                break
+
+            estates = payload.get("_embedded", {}).get("estates", [])
+            if not estates:
+                break
+
+            # Počítadla
+            new_companies = 0
+            existing_companies = 0
+
+            for estate in estates:
+                total_listings_all += 1
+
+                embedded = estate.get("_embedded", {})
+                company = embedded.get("company", {})
+
+                if not company:
+                    continue
+
+                company_id = company.get("id")
+                if not company_id:
+                    continue
+
+                company_id = str(company_id)
+
+                # Kontrola, jestli je company nová (napříč VŠEMI kombinacemi!)
+                comp = all_companies[company_id]
+
+                if comp["company_id"] is None:
+                    comp["company_id"] = company_id
+                    comp["company_name"] = company.get("name")
+                    new_companies += 1
+                else:
+                    existing_companies += 1
+
+                comp["total_estates"] += 1
+
+                # Lokalita
+                locality = estate.get("locality", "")
+                if locality:
+                    comp["localities"].add(locality)
+
+                # Kategorie
+                seo = estate.get("seo", {}) if isinstance(estate.get("seo"), dict) else {}
+                cat_main = seo.get("category_main_cb") or category_main
+                cat_type = seo.get("category_type_cb") or category_type
+                key = (cat_main, cat_type)
+                comp["category_breakdown"][key] += 1
+
+            # Výpis
+            print(f"      Stránka {page}: {len(estates)} inzerátů", end="")
+            if new_companies > 0 or existing_companies > 0:
+                print(f" (Nové RK: {new_companies}, Existující: {existing_companies})", end="")
+            print()
+
+            result_size = payload.get("result_size", 0)
+            if (page * 60) >= result_size:
+                break
+
+            page += 1
+            scraper._delay()
+
+    print(f"\n✅ Zpracováno {total_listings_all} inzerátů celkem")
+    print(f"✅ Nalezeno {len(all_companies)} UNIKÁTNÍCH realitních kanceláří")
+
+    # FÁZE 2: Volej sellers API jen pro UNIKÁTNÍ companies
+    print(f"\n🔍 FÁZE 2: Stahuji seznam makléřů (jen pro unikátní RK)...")
+
+    all_records = []
+
+    for idx, (company_id, comp) in enumerate(all_companies.items(), 1):
+        # Stáhnout VŠECHNY makléře (může být více stránek!)
+        all_sellers = []
+        page = 1
+
+        while True:
+            company_url = f"{scraper._config.base_url}/api/cs/v2/companies/{company_id}"
+            params = {"page": page} if page > 1 else None
+            company_data = scraper._request(company_url, params=params)
+
+            if not company_data:
+                print(f"   ⚠️  Chyba při stahování company {company_id}")
+                break
+
+            # Získej seznam makléřů
+            embedded = company_data.get("_embedded", {})
+            sellers_data = embedded.get("sellers", {})
+
+            if isinstance(sellers_data, dict):
+                result_size = sellers_data.get("result_size", 0)
+                per_page = sellers_data.get("per_page", 20)
+                sellers_list = sellers_data.get("sellers", [])
+            else:
+                sellers_list = []
+                result_size = 0
+                per_page = 20
+
+            if not sellers_list:
+                break
+
+            all_sellers.extend(sellers_list)
+
+            # Kontrola, jestli jsou další stránky
+            if (page * per_page) >= result_size:
+                break
+
+            page += 1
+            scraper._delay()
+
+        if not all_sellers:
+            print(f"   ⚠️  Company {comp['company_name']}: žádní makléři")
+            continue
+
+        # Výpis
+        if page > 1:
+            print(f"   {idx}/{len(all_companies)}: {comp['company_name']} - {len(all_sellers)} makléřů ({page} stránek)")
+        else:
+            print(f"   {idx}/{len(all_companies)}: {comp['company_name']} - {len(all_sellers)} makléřů")
+
+        # Lokalita
+        localities_list = list(comp["localities"])
+        if localities_list:
+            locality = localities_list[0]
+            parts = [p.strip() for p in locality.split(",")]
+            mesto = parts[0] if parts else ""
+            kraj = parts[-1] if len(parts) > 1 else ""
+        else:
+            mesto = ""
+            kraj = ""
+
+        # Rozložení
+        breakdown_items = []
+        for (cat, typ), count in sorted(comp["category_breakdown"].items(), key=lambda x: -x[1]):
+            cat_name = category_names.get(cat, f"Kategorie {cat}")
+            typ_name = type_names.get(typ, f"Typ {typ}")
+            breakdown_items.append(f"{cat_name}/{typ_name}: {count}")
+        rozlozeni = ", ".join(breakdown_items) if breakdown_items else ""
+
+        company_slug = slugify_company_name(comp["company_name"])
+
+        # Company řádek
+        all_records.append({
+            "typ_radku": "COMPANY",
+            "zdroj": "Sreality.cz",
+            "realitni_kancelar": comp["company_name"],
+            "jmeno_maklere": "",
+            "telefon": "",
+            "email": "",
+            "kraj": kraj,
+            "mesto": mesto,
+            "profil_url": "",
+            "pocet_inzeratu": comp["total_estates"],
+            "rozlozeni_inzeratu": rozlozeni,
+        })
+
+        # Makléři
+        for seller in all_sellers:
+            seller_id = seller.get("id")
+            seller_name = seller.get("name", "")
+
+            phones = seller.get("phones", [])
+            phone = ""
+            if phones and isinstance(phones, list):
+                first_phone = phones[0]
+                if isinstance(first_phone, dict):
+                    phone = first_phone.get("number", "")
+
+            email = seller.get("email", "")
+            profile_url = f"https://www.sreality.cz/adresar/{company_slug}/{company_id}/makleri/{seller_id}"
+
+            all_records.append({
+                "typ_radku": "AGENT",
+                "zdroj": "",
+                "realitni_kancelar": "",
+                "jmeno_maklere": seller_name,
+                "telefon": phone,
+                "email": email,
+                "kraj": "",
+                "mesto": "",
+                "profil_url": profile_url,
+                "pocet_inzeratu": "",
+                "rozlozeni_inzeratu": "",
+            })
+
+        scraper._delay()
+
+    print(f"\n✅ Stahování dokončeno")
+
+    return all_records
+
+
 def scrape_agents_fast(
     scraper,
     category_main,
@@ -46,7 +294,7 @@ def scrape_agents_fast(
     max_pages,
     full_scan,
 ):
-    """Super rychlý scraping pomocí company API."""
+    """Super rychlý scraping pomocí company API (single combination)."""
 
     print(f"🔍 FÁZE 1: Agregace podle company...")
 
@@ -484,33 +732,31 @@ def main():
             # Interaktivní mód
             params = prompt_for_params()
 
-            # Vytvoř kombinace parametrů
-            all_records = []
-
+            # Vytvoř VŠECHNY kombinace najednou (pro deduplikaci!)
+            combinations = []
             for category_main in params["category_main_list"]:
                 for category_type in params["category_type_list"]:
                     localities = params["locality_list"] or [None]
-
                     for locality in localities:
-                        print("\n" + "="*80)
-                        print(f"🔍 Scraping: {category_names.get(category_main)} / {type_names.get(category_type)}")
-                        if locality:
-                            print(f"   Kraj: {region_names.get(locality)}")
-                        print("="*80)
+                        combinations.append((category_main, category_type, locality))
 
-                        records = scrape_agents_fast(
-                            scraper,
-                            category_main,
-                            category_type,
-                            locality,
-                            params["max_pages"],
-                            params["full_scan"],
-                        )
+            # Výpis kombinací
+            print("\n" + "="*80)
+            print(f"🎯 Celkem {len(combinations)} kombinací k zpracování:")
+            for idx, (cat, typ, loc) in enumerate(combinations, 1):
+                line = f"   {idx}. {category_names.get(cat)} / {type_names.get(typ)}"
+                if loc:
+                    line += f" / {region_names.get(loc)}"
+                print(line)
+            print("="*80)
 
-                        all_records.extend(records)
-
-            # Slouč výsledky
-            final_records = merge_records(all_records)
+            # Použij COMBINED funkci - automaticky deduplikuje companies!
+            final_records = scrape_agents_fast_combined(
+                scraper,
+                combinations,
+                params["max_pages"],
+                params["full_scan"],
+            )
 
         else:
             # Manuální parametry
